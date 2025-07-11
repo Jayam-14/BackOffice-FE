@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -11,31 +11,25 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Alert,
-  CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Close as CloseIcon,
-  Block as BlockIcon
+  Visibility as ViewIcon,
+  Send as SubmitIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { DashboardLayout } from '../component/DashboardLayout';
-import { mockAPI } from '../services/mockData';
+import { salesPRService } from '../services/prService';
 import { useAuth } from '../contexts/AuthContext';
 import { PRStatus, UserRole } from '../types';
 import { PRForm } from '../component/PRForm';
+import { PRViewDialog } from '../component/PRViewDialog';
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -73,20 +67,40 @@ const getStatusLabel = (status: string) => {
 
 export const SalesDashboard: React.FC = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedPR, setSelectedPR] = useState<any>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
+  console.log('SalesDashboard - User:', user);
+  console.log('SalesDashboard - User enabled:', !!user);
+  
+
+
   const { data: prs, isLoading, error } = useQuery({
-    queryKey: ['prs', user?.id, user?.role],
-    queryFn: () => mockAPI.getPRs(user?.id || '', user?.role || UserRole.SALES_EXECUTIVE),
+    queryKey: ['sales-prs', user?.id, user?.role],
+    queryFn: async () => {
+      console.log('SalesDashboard - Fetching Sales PRs...');
+      try {
+        const result = await salesPRService.getPRs();
+        console.log('SalesDashboard - Sales PRs fetched successfully:', result);
+        console.log('SalesDashboard - PRs type:', typeof result);
+        console.log('SalesDashboard - PRs length:', Array.isArray(result) ? result.length : 'Not an array');
+        if (Array.isArray(result) && result.length > 0) {
+          console.log('SalesDashboard - First PR structure:', result[0]);
+        }
+        return result;
+      } catch (err) {
+        console.error('SalesDashboard - Error fetching PRs:', err);
+        throw err;
+      }
+    },
     enabled: !!user
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => mockAPI.createPR(data),
+    mutationFn: (data: any) => salesPRService.createPR(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prs'] });
       setIsCreateDialogOpen(false);
@@ -94,15 +108,22 @@ export const SalesDashboard: React.FC = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ prId, data }: { prId: string; data: any }) => mockAPI.updatePR(prId, data),
+    mutationFn: ({ prId, data }: { prId: string; data: any }) => salesPRService.updatePR(prId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prs'] });
       setIsEditDialogOpen(false);
     }
   });
 
+  const submitMutation = useMutation({
+    mutationFn: (prData: any) => salesPRService.submitPR(prData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prs'] });
+    }
+  });
+
   const deleteMutation = useMutation({
-    mutationFn: (prId: string) => mockAPI.deletePR(prId),
+    mutationFn: (prId: string) => salesPRService.deletePR(prId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prs'] });
     }
@@ -112,48 +133,24 @@ export const SalesDashboard: React.FC = () => {
     setIsCreateDialogOpen(true);
   };
 
+  const handleViewPR = (pr: any) => {
+    setSelectedPR(pr);
+    setIsViewDialogOpen(true);
+  };
+
   const handleEditPR = (pr: any) => {
     setSelectedPR(pr);
     setIsEditDialogOpen(true);
+  };
+
+  const handleSubmitPR = (pr: any) => {
+    submitMutation.mutate(pr);
   };
 
   const handleDeletePR = (prId: string) => {
     if (window.confirm('Are you sure you want to delete this PR?')) {
       deleteMutation.mutate(prId);
     }
-  };
-
-  const handlePRFormSubmit = (data: any, action: 'save' | 'submit') => {
-    if (action === 'save') {
-      // Save as draft
-      if (selectedPR) {
-        // Update existing PR
-        updateMutation.mutate({ prId: selectedPR.id, data });
-      } else {
-        // Create new PR as draft
-        createMutation.mutate(data);
-      }
-    } else {
-      // Submit for review
-      if (selectedPR) {
-        // Update and submit existing PR
-        updateMutation.mutate({ 
-          prId: selectedPR.id, 
-          data: { ...data, status: PRStatus.UNDER_REVIEW, submission_date: new Date() }
-        });
-      } else {
-        // Create new PR and submit immediately
-        createMutation.mutate({ ...data, status: PRStatus.UNDER_REVIEW, submission_date: new Date() });
-      }
-    }
-  };
-
-  const handleRowClick = (pr: any) => {
-    navigate(`/pr/${pr.id}`);
-  };
-
-  const isActionDisabled = (status: string) => {
-    return status !== PRStatus.DRAFT;
   };
 
   if (isLoading) {
@@ -191,133 +188,94 @@ export const SalesDashboard: React.FC = () => {
           </Button>
         </Box>
 
-        {prs && prs.length > 0 ? (
-          <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
-            <Table sx={{ minWidth: 650 }}>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                  <TableCell sx={{ fontWeight: 'bold' }}>PR ID</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Account Info</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Origin</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Destination</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Shipment Date</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {prs.map((pr) => (
-                  <TableRow
-                    key={pr.id}
-                    onClick={() => handleRowClick(pr)}
-                    sx={{
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: '#f8f9fa'
-                      },
-                      '&:nth-of-type(odd)': {
-                        backgroundColor: '#fafafa'
-                      }
-                    }}
-                  >
-                    <TableCell sx={{ fontWeight: 'medium' }}>
-                      #{pr.id}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="medium">
-                        {pr.accountInfo}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {pr.startingAddress}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {pr.startingState}, {pr.startingZip}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {pr.destinationAddress}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {pr.destinationState}, {pr.destinationZip}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(pr.shipmentDate), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={getStatusLabel(pr.status)}
-                        color={getStatusColor(pr.status) as any}
+        <Grid container spacing={3}>
+          {prs?.map((pr) => (
+            <Grid item xs={12} md={6} lg={4} key={pr.id}>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Typography variant="h6" component="h2" noWrap>
+                      {pr.accountInfo}
+                    </Typography>
+                    <Chip
+                      label={getStatusLabel(pr.status)}
+                      color={getStatusColor(pr.status) as any}
+                      size="small"
+                    />
+                  </Box>
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Shipment: {format(new Date(pr.shipmentDate), 'MMM dd, yyyy')}
+                  </Typography>
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    From: {pr.startingAddress}, {pr.startingState}
+                  </Typography>
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    To: {pr.destinationAddress}, {pr.destinationState}
+                  </Typography>
+                  
+                  <Typography variant="body2" color="text.secondary">
+                    Items: {pr.items.length} item(s)
+                  </Typography>
+                  
+                  <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleViewPR(pr)}
+                      color="primary"
+                    >
+                      <ViewIcon />
+                    </IconButton>
+                    
+                    {pr.status === PRStatus.DRAFT && (
+                      <>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditPR(pr)}
+                          color="primary"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        
+                        <IconButton
+                          size="small"
+                          onClick={() => handleSubmitPR(pr)}
+                          color="success"
+                          disabled={submitMutation.isPending}
+                        >
+                          <SubmitIcon />
+                        </IconButton>
+                        
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeletePR(pr.id)}
+                          color="error"
+                          disabled={deleteMutation.isPending}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </>
+                    )}
+                    
+                    {pr.status === PRStatus.ACTION_REQUIRED && (
+                      <IconButton
                         size="small"
-                        sx={{ fontWeight: 'medium' }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        {pr.status === PRStatus.DRAFT && (
-                          <>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditPR(pr);
-                              }}
-                              color="primary"
-                              title="Edit PR"
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeletePR(pr.id);
-                              }}
-                              color="error"
-                              disabled={deleteMutation.isPending}
-                              title="Delete PR"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        )}
-                        
-                        {pr.status === PRStatus.ACTION_REQUIRED && (
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditPR(pr);
-                            }}
-                            color="warning"
-                            title="Edit PR"
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                        
-                        {isActionDisabled(pr.status) && (
-                          <IconButton
-                            size="small"
-                            disabled
-                            sx={{ color: 'text.disabled' }}
-                            title="Actions disabled for this status"
-                          >
-                            <BlockIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : (
+                        onClick={() => handleEditPR(pr)}
+                        color="warning"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {prs?.length === 0 && (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="h6" color="text.secondary">
               No pricing requests found
@@ -336,20 +294,13 @@ export const SalesDashboard: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Create New Pricing Request
-          <IconButton
-            onClick={() => setIsCreateDialogOpen(false)}
-            size="small"
-            sx={{ color: 'text.secondary' }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
+        <DialogTitle>Create New Pricing Request</DialogTitle>
         <DialogContent>
           <PRForm
-            onSubmit={handlePRFormSubmit}
-            onCancel={() => {}} // Empty function since cancel is handled in dialog header
+            onSubmit={(data) => {
+              createMutation.mutate(data);
+            }}
+            onCancel={() => setIsCreateDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
@@ -361,22 +312,33 @@ export const SalesDashboard: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Edit Pricing Request
-          <IconButton
-            onClick={() => setIsEditDialogOpen(false)}
-            size="small"
-            sx={{ color: 'text.secondary' }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
+        <DialogTitle>Edit Pricing Request</DialogTitle>
         <DialogContent>
           {selectedPR && (
             <PRForm
               initialData={selectedPR}
-              onSubmit={handlePRFormSubmit}
-              onCancel={() => {}} // Empty function since cancel is handled in dialog header
+              onSubmit={(data) => {
+                updateMutation.mutate({ prId: selectedPR.id, data });
+              }}
+              onCancel={() => setIsEditDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View PR Dialog */}
+      <Dialog
+        open={isViewDialogOpen}
+        onClose={() => setIsViewDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>View Pricing Request</DialogTitle>
+        <DialogContent>
+          {selectedPR && (
+            <PRViewDialog
+              pr={selectedPR}
+              onClose={() => setIsViewDialogOpen(false)}
             />
           )}
         </DialogContent>

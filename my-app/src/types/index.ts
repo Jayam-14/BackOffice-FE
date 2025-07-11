@@ -6,15 +6,23 @@ export const UserRole = {
 export type UserRoleType = typeof UserRole[keyof typeof UserRole];
 
 export const PRStatus = {
-  DRAFT: 'DRAFT',
-  UNDER_REVIEW: 'UNDER_REVIEW',
-  ACTION_REQUIRED: 'ACTION_REQUIRED',
-  APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
-  CLOSED: 'CLOSED'
+  DRAFT: 'Draft',
+  UNDER_REVIEW: 'Under Review',
+  ACTION_REQUIRED: 'Action Required',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  CLOSED: 'Closed'
 } as const;
 
 export type PRStatusType = typeof PRStatus[keyof typeof PRStatus];
+
+export const AnalystStatus = {
+  UNDER_REVIEW: 'Under Review',
+  ACTIVE_STATUS: 'Active Status',
+  CLOSED: 'Closed'
+} as const;
+
+export type AnalystStatusType = typeof AnalystStatus[keyof typeof AnalystStatus];
 
 export interface User {
   id: string;
@@ -25,19 +33,17 @@ export interface User {
 }
 
 export interface Comment {
-  comment_id: string;
-  pr_id: string;
-  user_id: string;
-  role: UserRoleType;
+  id: string;
   comment_text: string;
-  created_at: Date;
+  created_at: string;
 }
 
 export interface ItemInfo {
+  id?: string;
   itemName: string;
   commodityClass: string;
   totalWeight: number;
-  handlingUnits: number;
+  handlingUnits: string;
   numberOfPieces: number;
   containerTypes: string;
   numberOfPallets: number;
@@ -45,9 +51,9 @@ export interface ItemInfo {
 
 export interface PRFormData {
   // Header Section
-  shipmentDate: Date;
+  shipmentDate: string;
   accountInfo: string;
-  discount: number;
+  discount: string;
   
   // Origin Section
   startingAddress: string;
@@ -65,9 +71,9 @@ export interface PRFormData {
   items: ItemInfo[];
   
   // Additional Services
-  accessorial: boolean;
-  pickup: boolean;
-  delivery: boolean;
+  accessorial: string;
+  pickup: string;
+  delivery: string;
   
   // Insurance
   daylightProtectCoverage: boolean;
@@ -78,10 +84,11 @@ export interface PRFormData {
 export interface PR extends PRFormData {
   id: string;
   status: PRStatusType;
+  analystStatus?: AnalystStatusType;
   created_by: string;
   assigned_to?: string;
-  submission_date?: Date;
-  last_updated: Date;
+  submission_date?: string;
+  last_updated: string;
   comments: Comment[];
 }
 

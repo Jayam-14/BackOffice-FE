@@ -11,6 +11,7 @@ import { SalesDashboard } from './pages/SalesDashboard';
 import { AnalystDashboard } from './pages/AnalystDashboard';
 import { PRDetailsPage } from './pages/PRDetailsPage';
 import { UserRole } from './types';
+import { runAllTests } from './utils/apiTester';
 
 // Create a theme instance
 const theme = createTheme({
@@ -111,6 +112,16 @@ const TestLogin: React.FC = () => {
       <Box sx={{ display: 'flex', gap: 2 }}>
         <Button onClick={logout} variant="outlined" color="error">
           Logout
+        </Button>
+        <Button 
+          onClick={() => {
+            console.log('🧪 Running API tests...');
+            runAllTests().catch(console.error);
+          }} 
+          variant="outlined" 
+          color="primary"
+        >
+          Test API Endpoints
         </Button>
       </Box>
     </Box>

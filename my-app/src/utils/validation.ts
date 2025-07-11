@@ -19,7 +19,7 @@ export const itemInfoSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
   commodityClass: z.string().min(1, 'Commodity class is required'),
   totalWeight: z.number().positive('Total weight must be positive'),
-  handlingUnits: z.number().int().positive('Handling units must be a positive integer'),
+  handlingUnits: z.string().min(1, 'Handling unit is required'),
   numberOfPieces: z.number().int().positive('Number of pieces must be a positive integer'),
   containerTypes: z.string().min(1, 'Container types is required'),
   numberOfPallets: z.number().int().min(0, 'Number of pallets must be non-negative')
@@ -31,7 +31,7 @@ export const prFormSchema = z.object({
     required_error: 'Shipment date is required'
   }),
   accountInfo: z.string().min(1, 'Account info is required'),
-  discount: z.number().min(0, 'Discount must be non-negative').max(100, 'Discount cannot exceed 100%'),
+  discount: z.string().min(1, 'Discount is required'),
   
   // Origin Section
   startingAddress: z.string().min(1, 'Starting address is required'),
@@ -49,9 +49,9 @@ export const prFormSchema = z.object({
   items: z.array(itemInfoSchema).min(1, 'At least one item is required'),
   
   // Additional Services
-  accessorial: z.boolean(),
-  pickup: z.boolean(),
-  delivery: z.boolean(),
+  accessorial: z.string().optional(),
+  pickup: z.string().optional(),
+  delivery: z.string().optional(),
   
   // Insurance
   daylightProtectCoverage: z.boolean(),

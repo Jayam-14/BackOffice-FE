@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User, UserRoleType, AuthContextType } from '../types';
 import { UserRole } from '../types';
+import { authAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -77,6 +79,7 @@ const TEST_USERS = [
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     console.log('AuthProvider - useEffect running, checking localStorage');
@@ -107,33 +110,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('AuthProvider - login called with:', email);
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Find user in test data
-      const testUser = TEST_USERS.find(u => u.email === email && u.password === password);
-      
-      if (!testUser) {
-        throw new Error('Invalid email or password');
-      }
+      // Call real API
+      const response = await authAPI.login({ email, password });
       
       // Create user object for the app
-      const mockUser: User = {
-        id: testUser.id,
-        name: testUser.name,
-        email: testUser.email,
-        role: testUser.role,
+      const user: User = {
+        id: response.user_id || Date.now().toString(),
+        name: response.name || email.split('@')[0],
+        email: email,
+        role: response.role === 'SE' ? UserRole.SALES_EXECUTIVE : UserRole.PRICING_ANALYST,
         createdAt: new Date()
       };
       
-      console.log('AuthProvider - login successful, setting user:', mockUser);
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      console.log('AuthProvider - API response role:', response.role);
+      console.log('AuthProvider - mapped to frontend role:', user.role);
       
-      console.log('AuthProvider - user saved to localStorage, navigation will be handled by DashboardRoute');
+              console.log('AuthProvider - login successful, setting user:', user);
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('AuthProvider - user saved to localStorage, triggering navigation');
+        // Trigger navigation based on role
+        if (user.role === UserRole.SALES_EXECUTIVE) {
+          navigate('/sales');
+        } else if (user.role === UserRole.PRICING_ANALYST) {
+          navigate('/analyst');
+        }
     } catch (error) {
       console.error('Login error in AuthContext:', error);
-      throw new Error('Invalid email or password');
+      
+      // Fallback to test users if API fails
+      console.log('AuthProvider - API failed, trying test users');
+      const testUser = TEST_USERS.find(u => u.email === email && u.password === password);
+      
+      if (testUser) {
+        const user: User = {
+          id: testUser.id,
+          name: testUser.name,
+          email: testUser.email,
+          role: testUser.role,
+          createdAt: new Date()
+        };
+        
+        console.log('AuthProvider - test user found, setting user:', user);
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('AuthProvider - test user saved to localStorage, triggering navigation');
+        // Trigger navigation based on role
+        if (user.role === UserRole.SALES_EXECUTIVE) {
+          navigate('/sales');
+        } else if (user.role === UserRole.PRICING_ANALYST) {
+          navigate('/analyst');
+        }
+      } else {
+        // Handle CORS errors specifically
+        if (error instanceof Error && error.message.includes('CORS_ERROR')) {
+          throw new Error('Backend API is not accessible. Please check if the backend is running and CORS is configured properly.');
+        }
+        
+        throw new Error('Invalid email or password');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -143,39 +180,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('AuthProvider - signup called with:', { name, email, role });
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call real API
+      const response = await authAPI.register({
+        username: name,
+        email,
+        password,
+        role: role === UserRole.SALES_EXECUTIVE ? 'SE' : 'PA'
+      });
       
-      // Check if user already exists
-      const existingUser = TEST_USERS.find(u => u.email === email);
-      if (existingUser) {
-        throw new Error('User with this email already exists');
-      }
-      
-      // Mock user data - in real app, this would come from API
-      const mockUser: User = {
-        id: Date.now().toString(),
+      // Create user object for the app
+      const user: User = {
+        id: response.user_id || Date.now().toString(),
         name,
         email,
         role,
         createdAt: new Date()
       };
       
-      console.log('AuthProvider - signup successful, creating user:', mockUser);
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      console.log('AuthProvider - signup role:', role);
+      console.log('AuthProvider - API response:', response);
       
-      console.log('AuthProvider - user saved to localStorage, navigation will be handled by DashboardRoute');
+      console.log('AuthProvider - signup successful, creating user:', user);
+      setUser(user);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      console.log('AuthProvider - user saved to localStorage, triggering navigation');
+      // Trigger navigation based on role
+      if (user.role === UserRole.SALES_EXECUTIVE) {
+        navigate('/sales');
+      } else if (user.role === UserRole.PRICING_ANALYST) {
+        navigate('/analyst');
+      }
     } catch (error) {
       console.error('Signup error in AuthContext:', error);
+      
+      // Handle CORS errors specifically
+      if (error instanceof Error && error.message.includes('CORS_ERROR')) {
+        throw new Error('Backend API is not accessible. Please check if the backend is running and CORS is configured properly.');
+      }
+      
       throw new Error('Signup failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     console.log('AuthProvider - logout called');
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+      // Continue with logout even if API call fails
+    }
     setUser(null);
     localStorage.removeItem('user');
     // Navigation will be handled by the DashboardRoute component

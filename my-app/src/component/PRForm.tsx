@@ -32,7 +32,7 @@ const defaultItem: ItemInfo = {
   itemName: '',
   commodityClass: '',
   totalWeight: 0,
-  handlingUnits: 0,
+  handlingUnits: 'Pallet',
   numberOfPieces: 0,
   containerTypes: '',
   numberOfPallets: 0
@@ -51,7 +51,7 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
     defaultValues: initialData || {
       shipmentDate: new Date(),
       accountInfo: '',
-      discount: 0,
+      discount: '',
       startingAddress: '',
       startingState: '',
       startingZip: '',
@@ -61,9 +61,9 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
       destinationZip: '',
       destinationCountry: '',
       items: [defaultItem],
-      accessorial: false,
-      pickup: false,
-      delivery: false,
+      accessorial: '',
+      pickup: '',
+      delivery: '',
       daylightProtectCoverage: false,
       insuranceDescription: '',
       insuranceNote: ''
@@ -121,11 +121,11 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Discount (%)"
-                  type="number"
-                  {...register('discount', { valueAsNumber: true })}
+                  label="Discount"
+                  {...register('discount')}
                   error={!!errors.discount}
                   helperText={errors.discount?.message}
+                  placeholder="e.g., 15%"
                 />
               </Grid>
             </Grid>
@@ -292,11 +292,11 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
-                      label="Handling Units"
-                      type="number"
-                      {...register(`items.${index}.handlingUnits`, { valueAsNumber: true })}
+                      label="Handling Unit"
+                      {...register(`items.${index}.handlingUnits`)}
                       error={!!errors.items?.[index]?.handlingUnits}
                       helperText={errors.items?.[index]?.handlingUnits?.message}
+                      placeholder="e.g., Pallet, Box, Crate"
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -342,36 +342,33 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      {...register('accessorial')}
-                      checked={watch('accessorial')}
-                    />
-                  }
+                <TextField
+                  fullWidth
                   label="Accessorial"
+                  {...register('accessorial')}
+                  error={!!errors.accessorial}
+                  helperText={errors.accessorial?.message}
+                  placeholder="e.g., Liftgate, Notification"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      {...register('pickup')}
-                      checked={watch('pickup')}
-                    />
-                  }
+                <TextField
+                  fullWidth
                   label="Pickup"
+                  {...register('pickup')}
+                  error={!!errors.pickup}
+                  helperText={errors.pickup?.message}
+                  placeholder="e.g., Standard, Next Day"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      {...register('delivery')}
-                      checked={watch('delivery')}
-                    />
-                  }
+                <TextField
+                  fullWidth
                   label="Delivery"
+                  {...register('delivery')}
+                  error={!!errors.delivery}
+                  helperText={errors.delivery?.message}
+                  placeholder="e.g., Express, White Glove"
                 />
               </Grid>
             </Grid>
