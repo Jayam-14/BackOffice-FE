@@ -118,12 +118,12 @@ export const mockAPI = {
     return mockPRs.find(pr => pr.id === prId) || null;
   },
 
-  createPR: async (prData: Omit<PR, 'id' | 'status' | 'created_by' | 'last_updated' | 'comments'>): Promise<PR> => {
+  createPR: async (prData: Omit<PR, 'id' | 'created_by' | 'last_updated' | 'comments'> & { status?: PRStatusType; submission_date?: Date }): Promise<PR> => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     const newPR: PR = {
       ...prData,
       id: Date.now().toString(),
-      status: PRStatus.DRAFT,
+      status: prData.status || PRStatus.DRAFT,
       created_by: '1', // This would come from auth context
       last_updated: new Date(),
       comments: []

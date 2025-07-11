@@ -4,11 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box, Typography, Button, Paper } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { NavigationHelper } from './components/NavigationHelper';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { NavigationHelper } from './component/NavigationHelper';
+import { ErrorBoundary } from './component/ErrorBoundary';
 import { AuthPage } from './pages/AuthPage';
 import { SalesDashboard } from './pages/SalesDashboard';
 import { AnalystDashboard } from './pages/AnalystDashboard';
+import { PRDetailsPage } from './pages/PRDetailsPage';
 import { UserRole } from './types';
 
 // Create a theme instance
@@ -191,6 +192,14 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute>
               <AnalystDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pr/:prId"
+          element={
+            <ProtectedRoute>
+              <PRDetailsPage />
             </ProtectedRoute>
           }
         />

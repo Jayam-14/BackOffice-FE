@@ -25,11 +25,11 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { DashboardLayout } from '../components/DashboardLayout';
+import { DashboardLayout } from '../component/DashboardLayout';
 import { mockAPI } from '../services/mockData';
 import { useAuth } from '../contexts/AuthContext';
 import { PRStatus, UserRole } from '../types';
-import { PRViewDialog } from '../components/PRViewDialog';
+import { PRViewDialog } from '../component/PRViewDialog';
 
 const getStatusColor = (status: string) => {
   switch (status) {
