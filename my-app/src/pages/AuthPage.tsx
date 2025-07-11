@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Container, Typography } from '@mui/material';
-import { LoginForm } from '../components/LoginForm';
-import { SignupForm } from '../components/SignupForm';
+import { LoginForm } from '../component/LoginForm';
+import { SignupForm } from '../component/SignupForm';
 
 export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);

@@ -24,8 +24,8 @@ import type { ItemInfo } from '../types';
 
 interface PRFormProps {
   initialData?: PRFormData;
-  onSubmit: (data: PRFormData) => void;
-  onCancel: () => void;
+  onSubmit: (data: PRFormData, action: 'save' | 'submit') => void;
+  onCancel?: () => void;
 }
 
 const defaultItem: ItemInfo = {
@@ -77,13 +77,17 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
 
   const watchedItems = watch('items');
 
-  const handleFormSubmit = (data: PRFormData) => {
-    onSubmit(data);
+  const handleSave = (data: PRFormData) => {
+    onSubmit(data, 'save');
+  };
+
+  const handleSubmitForm = (data: PRFormData) => {
+    onSubmit(data, 'submit');
   };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box component="form" onSubmit={handleSubmit(handleFormSubmit)} sx={{ mt: 2 }}>
+      <Box component="form" sx={{ mt: 2 }}>
         {/* Header Section */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
@@ -222,12 +226,12 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
           </CardContent>
         </Card>
 
-        {/* Item Information */}
+        {/* Items Section */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Item Information
+                Items
               </Typography>
               <Button
                 startIcon={<AddIcon />}
@@ -419,21 +423,58 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
         </Card>
 
         {/* Form Actions */}
+        <Card sx={{ mb: 3, backgroundColor: '#f5f5f5' }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Form Actions:
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#1976d2' }} />
+                <Typography variant="body2">
+                  <strong>Save as Draft:</strong> Saves your work as a draft. You can edit it later.
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#2e7d32' }} />
+                <Typography variant="body2">
+                  <strong>Submit for Review:</strong> Sends the PR to pricing analysts for review.
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
           <Button
+            onClick={handleSubmit(handleSave)}
             variant="outlined"
-            onClick={onCancel}
             disabled={isSubmitting}
+            sx={{ 
+              borderColor: '#1976d2', 
+              color: '#1976d2',
+              '&:hover': {
+                borderColor: '#1565c0',
+                backgroundColor: 'rgba(25, 118, 210, 0.04)'
+              }
+            }}
+            title="Save as draft - You can edit this later"
           >
-            Cancel
+            {isSubmitting ? 'Saving...' : 'Save as Draft'}
           </Button>
           <Button
-            type="submit"
+            onClick={handleSubmit(handleSubmitForm)}
             variant="contained"
             disabled={isSubmitting}
-            sx={{ backgroundColor: '#1976d2' }}
+            sx={{ 
+              backgroundColor: '#1976d2',
+              '&:hover': {
+                backgroundColor: '#1565c0'
+              }
+            }}
+            title="Submit for review - This will be sent to pricing analysts"
           >
-            {isSubmitting ? 'Saving...' : initialData ? 'Update PR' : 'Create PR'}
+            {isSubmitting ? 'Submitting...' : initialData ? 'Update & Submit' : 'Submit for Review'}
           </Button>
         </Box>
       </Box>
