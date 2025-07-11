@@ -1,58 +1,39 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: "https://6c3ae1444bd5.ngrok-free.app",
-  
-  // API Endpoints
+  BASE_URL: "http://localhost:8080",
+  REQUEST_CONFIG: {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  },
   ENDPOINTS: {
     AUTH: {
       REGISTER: "/auth/register",
       LOGIN: "/auth/login",
       LOGOUT: "/auth/logout",
+      PROFILE: "/auth/profile",
     },
     SALES: {
       SAVE: "/sales/pr/save",
       SUBMIT: "/sales/pr/submit",
       GET_ALL: "/sales/pr",
-      GET_BY_ID: (id: string) => `/sales/pr/${id}`,
-      UPDATE: (id: string) => `/sales/pr/${id}`,
-      RESUBMIT: (id: string) => `/sales/pr/${id}/resubmit`,
-      DELETE: (id: string) => `/sales/pr/${id}`,
+      GET_BY_ID: (prId: string) => `/sales/pr/${prId}`,
+      UPDATE: (prId: string) => `/sales/pr/${prId}`,
+      RESUBMIT: (prId: string) => `/sales/pr/${prId}/resubmit`,
+      DELETE: (prId: string) => `/sales/pr/${prId}`,
+      SEND_TO_PA: (prId: string) => `/sales/pr/${prId}/send-to-pa`,
     },
     PA: {
       GET_ALL: "/pa/pr",
       GET_MY: "/pa/pr/my",
-      ASSIGN: (id: string) => `/pa/pr/${id}/assign`,
-      APPROVE_REJECT: (id: string) => `/pa/pr/${id}/approve-reject`,
-      GET_BY_ID: (id: string) => `/pa/pr/${id}`,
+      GET_BY_ID: (prId: string) => `/pa/pr/${prId}`,
+      ASSIGN: (prId: string) => `/pa/pr/${prId}/assign`,
+      APPROVE_REJECT: (prId: string) => `/pa/pr/${prId}/approve-reject`,
     },
-  },
-  
-  // Request configuration
-  REQUEST_CONFIG: {
-    credentials: 'include' as const,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    HEALTH: "/health",
   },
 };
 
-// Environment-specific configuration
-export const getApiBaseUrl = () => {
-  // In development, use the proxy
-  if (import.meta.env.DEV) {
-    return '/api';
-  }
-  
-  // Check for environment variable first
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  
-  // Fallback to default
-  return API_CONFIG.BASE_URL;
+export const buildApiUrl = (endpoint: string): string => {
+  return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
-
-// Helper function to build full API URL
-export const buildApiUrl = (endpoint: string) => {
-  return `${getApiBaseUrl()}${endpoint}`;
-}; 

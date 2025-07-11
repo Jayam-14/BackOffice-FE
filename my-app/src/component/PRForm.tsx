@@ -1,94 +1,207 @@
-import React from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   TextField,
   Button,
   Grid,
   Typography,
-  FormControlLabel,
-  Checkbox,
   IconButton,
   Card,
   CardContent,
+  FormControlLabel,
+  Checkbox,
   Divider,
-  Alert
-} from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { prFormSchema, type PRFormData } from '../utils/validation';
-import type { ItemInfo } from '../types';
+  Alert,
+} from "@mui/material";
+import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import type { PRCreateData, PRItem } from "../types";
 
 interface PRFormProps {
-  initialData?: PRFormData;
-  onSubmit: (data: PRFormData, action: 'save' | 'submit') => void;
-  onCancel?: () => void;
+  initialData?: Partial<PRCreateData>;
+  onSubmit: (data: PRCreateData) => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+  submitLabel?: string;
 }
 
-const defaultItem: ItemInfo = {
-  itemName: '',
-  commodityClass: '',
+const defaultItem: PRItem = {
+  id: "",
+  itemName: "",
+  commodityClass: "",
   totalWeight: 0,
-  handlingUnits: 'Pallet',
-  numberOfPieces: 0,
-  containerTypes: '',
-  numberOfPallets: 0
+  handlingUnit: "",
+  noOfPieces: 0,
+  containerType: "",
+  noOfPallets: 0,
 };
 
-export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel }) => {
-  const {
-    control,
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    watch,
-    setValue
-  } = useForm<PRFormData>({
-    resolver: zodResolver(prFormSchema),
-    defaultValues: initialData || {
-      shipmentDate: new Date(),
-      accountInfo: '',
-      discount: '',
-      startingAddress: '',
-      startingState: '',
-      startingZip: '',
-      startingCountry: '',
-      destinationAddress: '',
-      destinationState: '',
-      destinationZip: '',
-      destinationCountry: '',
-      items: [defaultItem],
-      accessorial: '',
-      pickup: '',
-      delivery: '',
-      daylightProtectCoverage: false,
-      insuranceDescription: '',
-      insuranceNote: ''
+export const PRForm: React.FC<PRFormProps> = ({
+  initialData,
+  onSubmit,
+  onCancel,
+  isLoading = false,
+  submitLabel = "Submit",
+}) => {
+  const [formData, setFormData] = useState<PRCreateData>({
+    shipmentDate: new Date(),
+    accountInfo: "",
+    discount: "",
+    originAddress: "",
+    originState: "",
+    originZip: "",
+    originCountry: "USA",
+    destAddress: "",
+    destState: "",
+    destZip: "",
+    destCountry: "USA",
+    accessorial: "",
+    pickup: "",
+    delivery: "",
+    daylightProtect: false,
+    items: [defaultItem],
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData((prev) => ({
+        ...prev,
+        ...initialData,
+      }));
     }
-  });
+  }, [initialData]);
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'items'
-  });
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
 
-  const watchedItems = watch('items');
+    if (!formData.accountInfo.trim()) {
+      newErrors.accountInfo = "Account info is required";
+    }
 
-  const handleSave = (data: PRFormData) => {
-    onSubmit(data, 'save');
+    if (!formData.originAddress.trim()) {
+      newErrors.originAddress = "Origin address is required";
+    }
+
+    if (!formData.originState.trim()) {
+      newErrors.originState = "Origin state is required";
+    }
+
+    if (!formData.originZip.trim()) {
+      newErrors.originZip = "Origin ZIP is required";
+    }
+
+    if (!formData.destAddress.trim()) {
+      newErrors.destAddress = "Destination address is required";
+    }
+
+    if (!formData.destState.trim()) {
+      newErrors.destState = "Destination state is required";
+    }
+
+    if (!formData.destZip.trim()) {
+      newErrors.destZip = "Destination ZIP is required";
+    }
+
+    // Validate items
+    formData.items.forEach((item, index) => {
+      if (!item.itemName.trim()) {
+        newErrors[`item${index}Name`] = "Item name is required";
+      }
+      if (!item.commodityClass.trim()) {
+        newErrors[`item${index}Class`] = "Commodity class is required";
+      }
+      if (item.totalWeight <= 0) {
+        newErrors[`item${index}Weight`] = "Total weight must be greater than 0";
+      }
+      if (item.noOfPieces <= 0) {
+        newErrors[`item${index}Pieces`] =
+          "Number of pieces must be greater than 0";
+      }
+      if (item.noOfPallets <= 0) {
+        newErrors[`item${index}Pallets`] =
+          "Number of pallets must be greater than 0";
+      }
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmitForm = (data: PRFormData) => {
-    onSubmit(data, 'submit');
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (validateForm()) {
+      onSubmit(formData);
+    }
+  };
+
+  const handleInputChange =
+    (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: event.target.value,
+      }));
+      // Clear error when user starts typing
+      if (errors[field]) {
+        setErrors((prev) => ({ ...prev, [field]: "" }));
+      }
+    };
+
+  const handleItemChange =
+    (index: number, field: keyof PRItem) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const newItems = [...formData.items];
+      newItems[index] = {
+        ...newItems[index],
+        [field]:
+          field === "totalWeight" ||
+          field === "noOfPieces" ||
+          field === "noOfPallets"
+            ? parseFloat(event.target.value) || 0
+            : event.target.value,
+      };
+      setFormData((prev) => ({ ...prev, items: newItems }));
+
+      // Clear error when user starts typing
+      const errorKey = `item${index}${
+        field.charAt(0).toUpperCase() + field.slice(1)
+      }`;
+      if (errors[errorKey]) {
+        setErrors((prev) => ({ ...prev, [errorKey]: "" }));
+      }
+    };
+
+  const addItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      items: [...prev.items, { ...defaultItem, id: Date.now().toString() }],
+    }));
+  };
+
+  const removeItem = (index: number) => {
+    if (formData.items.length > 1) {
+      setFormData((prev) => ({
+        ...prev,
+        items: prev.items.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box component="form" sx={{ mt: 2 }}>
-        {/* Header Section */}
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ maxWidth: 800, mx: "auto" }}
+      >
+        <Typography variant="h5" gutterBottom>
+          Pricing Request Details
+        </Typography>
+
+        {/* Header Information */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -98,14 +211,15 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
               <Grid item xs={12} md={6}>
                 <DatePicker
                   label="Shipment Date"
-                  value={watch('shipmentDate')}
-                  onChange={(newValue) => setValue('shipmentDate', newValue || new Date())}
+                  value={formData.shipmentDate}
+                  onChange={(newValue) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      shipmentDate: newValue || new Date(),
+                    }))
+                  }
                   slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      error: !!errors.shipmentDate,
-                      helperText: errors.shipmentDate?.message
-                    }
+                    textField: { fullWidth: true, margin: "normal" },
                   }}
                 />
               </Grid>
@@ -113,26 +227,44 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
                 <TextField
                   fullWidth
                   label="Account Info"
-                  {...register('accountInfo')}
+                  value={formData.accountInfo}
+                  onChange={handleInputChange("accountInfo")}
+                  margin="normal"
                   error={!!errors.accountInfo}
-                  helperText={errors.accountInfo?.message}
+                  helperText={errors.accountInfo}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Discount"
-                  {...register('discount')}
-                  error={!!errors.discount}
-                  helperText={errors.discount?.message}
-                  placeholder="e.g., 15%"
+                  value={formData.discount}
+                  onChange={handleInputChange("discount")}
+                  margin="normal"
+                  placeholder="e.g., 10%"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={formData.daylightProtect}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          daylightProtect: e.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Daylight Protection"
                 />
               </Grid>
             </Grid>
           </CardContent>
         </Card>
 
-        {/* Origin Section */}
+        {/* Origin Information */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -142,44 +274,50 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Starting Address"
-                  {...register('startingAddress')}
-                  error={!!errors.startingAddress}
-                  helperText={errors.startingAddress?.message}
+                  label="Origin Address"
+                  value={formData.originAddress}
+                  onChange={handleInputChange("originAddress")}
+                  margin="normal"
+                  error={!!errors.originAddress}
+                  helperText={errors.originAddress}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="State"
-                  {...register('startingState')}
-                  error={!!errors.startingState}
-                  helperText={errors.startingState?.message}
+                  value={formData.originState}
+                  onChange={handleInputChange("originState")}
+                  margin="normal"
+                  error={!!errors.originState}
+                  helperText={errors.originState}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Zip Code"
-                  {...register('startingZip')}
-                  error={!!errors.startingZip}
-                  helperText={errors.startingZip?.message}
+                  label="ZIP Code"
+                  value={formData.originZip}
+                  onChange={handleInputChange("originZip")}
+                  margin="normal"
+                  error={!!errors.originZip}
+                  helperText={errors.originZip}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Country"
-                  {...register('startingCountry')}
-                  error={!!errors.startingCountry}
-                  helperText={errors.startingCountry?.message}
+                  value={formData.originCountry}
+                  onChange={handleInputChange("originCountry")}
+                  margin="normal"
                 />
               </Grid>
             </Grid>
           </CardContent>
         </Card>
 
-        {/* Destination Section */}
+        {/* Destination Information */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -190,147 +328,45 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
                 <TextField
                   fullWidth
                   label="Destination Address"
-                  {...register('destinationAddress')}
-                  error={!!errors.destinationAddress}
-                  helperText={errors.destinationAddress?.message}
+                  value={formData.destAddress}
+                  onChange={handleInputChange("destAddress")}
+                  margin="normal"
+                  error={!!errors.destAddress}
+                  helperText={errors.destAddress}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="State"
-                  {...register('destinationState')}
-                  error={!!errors.destinationState}
-                  helperText={errors.destinationState?.message}
+                  value={formData.destState}
+                  onChange={handleInputChange("destState")}
+                  margin="normal"
+                  error={!!errors.destState}
+                  helperText={errors.destState}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Zip Code"
-                  {...register('destinationZip')}
-                  error={!!errors.destinationZip}
-                  helperText={errors.destinationZip?.message}
+                  label="ZIP Code"
+                  value={formData.destZip}
+                  onChange={handleInputChange("destZip")}
+                  margin="normal"
+                  error={!!errors.destZip}
+                  helperText={errors.destZip}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Country"
-                  {...register('destinationCountry')}
-                  error={!!errors.destinationCountry}
-                  helperText={errors.destinationCountry?.message}
+                  value={formData.destCountry}
+                  onChange={handleInputChange("destCountry")}
+                  margin="normal"
                 />
               </Grid>
             </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Items Section */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Items
-              </Typography>
-              <Button
-                startIcon={<AddIcon />}
-                onClick={() => append(defaultItem)}
-                variant="outlined"
-                size="small"
-              >
-                Add Item
-              </Button>
-            </Box>
-
-            {fields.map((field, index) => (
-              <Card key={field.id} sx={{ mb: 2, p: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle1">
-                    Item {index + 1}
-                  </Typography>
-                  {fields.length > 1 && (
-                    <IconButton
-                      size="small"
-                      onClick={() => remove(index)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  )}
-                </Box>
-
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Item Name"
-                      {...register(`items.${index}.itemName`)}
-                      error={!!errors.items?.[index]?.itemName}
-                      helperText={errors.items?.[index]?.itemName?.message}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Commodity Class"
-                      {...register(`items.${index}.commodityClass`)}
-                      error={!!errors.items?.[index]?.commodityClass}
-                      helperText={errors.items?.[index]?.commodityClass?.message}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Total Weight (lbs)"
-                      type="number"
-                      {...register(`items.${index}.totalWeight`, { valueAsNumber: true })}
-                      error={!!errors.items?.[index]?.totalWeight}
-                      helperText={errors.items?.[index]?.totalWeight?.message}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Handling Unit"
-                      {...register(`items.${index}.handlingUnits`)}
-                      error={!!errors.items?.[index]?.handlingUnits}
-                      helperText={errors.items?.[index]?.handlingUnits?.message}
-                      placeholder="e.g., Pallet, Box, Crate"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Number of Pieces"
-                      type="number"
-                      {...register(`items.${index}.numberOfPieces`, { valueAsNumber: true })}
-                      error={!!errors.items?.[index]?.numberOfPieces}
-                      helperText={errors.items?.[index]?.numberOfPieces?.message}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Container Types"
-                      {...register(`items.${index}.containerTypes`)}
-                      error={!!errors.items?.[index]?.containerTypes}
-                      helperText={errors.items?.[index]?.containerTypes?.message}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Number of Pallets"
-                      type="number"
-                      {...register(`items.${index}.numberOfPallets`, { valueAsNumber: true })}
-                      error={!!errors.items?.[index]?.numberOfPallets}
-                      helperText={errors.items?.[index]?.numberOfPallets?.message}
-                    />
-                  </Grid>
-                </Grid>
-              </Card>
-            ))}
           </CardContent>
         </Card>
 
@@ -345,136 +381,176 @@ export const PRForm: React.FC<PRFormProps> = ({ initialData, onSubmit, onCancel 
                 <TextField
                   fullWidth
                   label="Accessorial"
-                  {...register('accessorial')}
-                  error={!!errors.accessorial}
-                  helperText={errors.accessorial?.message}
-                  placeholder="e.g., Liftgate, Notification"
+                  value={formData.accessorial}
+                  onChange={handleInputChange("accessorial")}
+                  margin="normal"
+                  placeholder="e.g., Liftgate"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Pickup"
-                  {...register('pickup')}
-                  error={!!errors.pickup}
-                  helperText={errors.pickup?.message}
-                  placeholder="e.g., Standard, Next Day"
+                  value={formData.pickup}
+                  onChange={handleInputChange("pickup")}
+                  margin="normal"
+                  placeholder="e.g., Standard"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Delivery"
-                  {...register('delivery')}
-                  error={!!errors.delivery}
-                  helperText={errors.delivery?.message}
-                  placeholder="e.g., Express, White Glove"
+                  value={formData.delivery}
+                  onChange={handleInputChange("delivery")}
+                  margin="normal"
+                  placeholder="e.g., Express"
                 />
               </Grid>
             </Grid>
           </CardContent>
         </Card>
 
-        {/* Insurance */}
+        {/* Items */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Insurance
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  {...register('daylightProtectCoverage')}
-                  checked={watch('daylightProtectCoverage')}
-                />
-              }
-              label="Daylight Protect Coverage"
-            />
-            {watch('daylightProtectCoverage') && (
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Insurance Description"
-                    multiline
-                    rows={3}
-                    {...register('insuranceDescription')}
-                    error={!!errors.insuranceDescription}
-                    helperText={errors.insuranceDescription?.message}
-                  />
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+              }}
+            >
+              <Typography variant="h6">Items</Typography>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={addItem}
+                variant="outlined"
+                size="small"
+              >
+                Add Item
+              </Button>
+            </Box>
+
+            {formData.items.map((item, index) => (
+              <Box
+                key={index}
+                sx={{ mb: 2, p: 2, border: "1px solid #ddd", borderRadius: 1 }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="subtitle1">Item {index + 1}</Typography>
+                  {formData.items.length > 1 && (
+                    <IconButton
+                      onClick={() => removeItem(index)}
+                      color="error"
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Item Name"
+                      value={item.itemName}
+                      onChange={handleItemChange(index, "itemName")}
+                      margin="normal"
+                      error={!!errors[`item${index}Name`]}
+                      helperText={errors[`item${index}Name`]}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Commodity Class"
+                      value={item.commodityClass}
+                      onChange={handleItemChange(index, "commodityClass")}
+                      margin="normal"
+                      error={!!errors[`item${index}Class`]}
+                      helperText={errors[`item${index}Class`]}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Total Weight (lbs)"
+                      type="number"
+                      value={item.totalWeight}
+                      onChange={handleItemChange(index, "totalWeight")}
+                      margin="normal"
+                      error={!!errors[`item${index}Weight`]}
+                      helperText={errors[`item${index}Weight`]}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Handling Unit"
+                      value={item.handlingUnit}
+                      onChange={handleItemChange(index, "handlingUnit")}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Number of Pieces"
+                      type="number"
+                      value={item.noOfPieces}
+                      onChange={handleItemChange(index, "noOfPieces")}
+                      margin="normal"
+                      error={!!errors[`item${index}Pieces`]}
+                      helperText={errors[`item${index}Pieces`]}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Container Type"
+                      value={item.containerType}
+                      onChange={handleItemChange(index, "containerType")}
+                      margin="normal"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Number of Pallets"
+                      type="number"
+                      value={item.noOfPallets}
+                      onChange={handleItemChange(index, "noOfPallets")}
+                      margin="normal"
+                      error={!!errors[`item${index}Pallets`]}
+                      helperText={errors[`item${index}Pallets`]}
+                    />
+                  </Grid>
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Insurance Note"
-                    multiline
-                    rows={2}
-                    {...register('insuranceNote')}
-                    error={!!errors.insuranceNote}
-                    helperText={errors.insuranceNote?.message}
-                  />
-                </Grid>
-              </Grid>
-            )}
+              </Box>
+            ))}
           </CardContent>
         </Card>
 
         {/* Form Actions */}
-        <Card sx={{ mb: 3, backgroundColor: '#f5f5f5' }}>
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Form Actions:
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#1976d2' }} />
-                <Typography variant="body2">
-                  <strong>Save as Draft:</strong> Saves your work as a draft. You can edit it later.
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#2e7d32' }} />
-                <Typography variant="body2">
-                  <strong>Submit for Review:</strong> Sends the PR to pricing analysts for review.
-                </Typography>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-          <Button
-            onClick={handleSubmit(handleSave)}
-            variant="outlined"
-            disabled={isSubmitting}
-            sx={{ 
-              borderColor: '#1976d2', 
-              color: '#1976d2',
-              '&:hover': {
-                borderColor: '#1565c0',
-                backgroundColor: 'rgba(25, 118, 210, 0.04)'
-              }
-            }}
-            title="Save as draft - You can edit this later"
-          >
-            {isSubmitting ? 'Saving...' : 'Save as Draft'}
+        <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
+          <Button onClick={onCancel} variant="outlined" disabled={isLoading}>
+            Cancel
           </Button>
-          <Button
-            onClick={handleSubmit(handleSubmitForm)}
-            variant="contained"
-            disabled={isSubmitting}
-            sx={{ 
-              backgroundColor: '#1976d2',
-              '&:hover': {
-                backgroundColor: '#1565c0'
-              }
-            }}
-            title="Submit for review - This will be sent to pricing analysts"
-          >
-            {isSubmitting ? 'Submitting...' : initialData ? 'Update & Submit' : 'Submit for Review'}
+          <Button type="submit" variant="contained" disabled={isLoading}>
+            {submitLabel}
           </Button>
         </Box>
       </Box>
     </LocalizationProvider>
   );
-}; 
+};

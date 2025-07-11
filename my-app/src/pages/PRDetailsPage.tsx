@@ -1,69 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
-  Button,
   Card,
   CardContent,
   Grid,
   Chip,
-  IconButton,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
+  TextField,
   Alert,
   CircularProgress,
   Divider,
-  Paper
-} from '@mui/material';
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
+} from "@mui/material";
 import {
-  ArrowBack as BackIcon,
+  ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Send as SubmitIcon,
-  Close as CloseIcon
-} from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
-import { DashboardLayout } from '../component/DashboardLayout';
-import { mockAPI } from '../services/mockData';
-import { useAuth } from '../contexts/AuthContext';
-import { PRStatus, UserRole } from '../types';
-import { PRForm } from '../component/PRForm';
-import { PRViewDialog } from '../component/PRViewDialog';
+  Send as SendIcon,
+  CheckCircle as ApproveIcon,
+  Cancel as RejectIcon,
+  Comment as CommentIcon,
+} from "@mui/icons-material";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useAuth } from "../contexts/AuthContext";
+import { salesPRService, paPRService } from "../services/prService";
+import { PRForm } from "../component/PRForm";
+import { UserRole, PRStatus } from "../types";
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case PRStatus.DRAFT:
-      return 'default';
-    case PRStatus.UNDER_REVIEW:
-      return 'warning';
-    case PRStatus.ACTION_REQUIRED:
-      return 'error';
-    case PRStatus.APPROVED:
-      return 'success';
-    case PRStatus.REJECTED:
-      return 'error';
-    default:
-      return 'default';
-  }
-};
-
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case PRStatus.DRAFT:
-      return 'Draft';
-    case PRStatus.UNDER_REVIEW:
-      return 'Under Review';
-    case PRStatus.ACTION_REQUIRED:
-      return 'Action Required';
-    case PRStatus.APPROVED:
-      return 'Approved';
-    case PRStatus.REJECTED:
-      return 'Rejected';
-    default:
-      return status;
+// Safe date formatting function
+const safeFormatDate = (date: any, formatString: string): string => {
+  try {
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return "Invalid Date";
+    }
+    return format(dateObj, formatString);
+  } catch (error) {
+    return "Invalid Date";
   }
 };
 
@@ -72,357 +55,635 @@ export const PRDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const { data: pr, isLoading, error } = useQuery({
-    queryKey: ['pr', prId],
-    queryFn: () => mockAPI.getPR(prId!),
-    enabled: !!prId
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
+  const [actionType, setActionType] = useState<
+    "approve" | "reject" | "action_required"
+  >("approve");
+  const [comment, setComment] = useState("");
+
+  if (!prId) {
+    return <Alert severity="error">PR ID is required</Alert>;
+  }
+
+  const {
+    data: pr,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["pr-details", prId],
+    queryFn: () => {
+      if (user?.role === UserRole.SALES_EXECUTIVE) {
+        return salesPRService.getPRById(prId);
+      } else {
+        return paPRService.getPRById(prId);
+      }
+    },
+    enabled: !!prId && !!user,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ prId, data }: { prId: string; data: any }) => mockAPI.updatePR(prId, data),
+    mutationFn: (data: any) => salesPRService.updatePR(prId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pr', prId] });
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
       setIsEditDialogOpen(false);
-    }
-  });
-
-  const submitMutation = useMutation({
-    mutationFn: (prId: string) => mockAPI.submitPR(prId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pr', prId] });
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-    }
+    },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (prId: string) => mockAPI.deletePR(prId),
+    mutationFn: () => salesPRService.deletePR(prId),
     onSuccess: () => {
-      navigate('/sales');
-    }
+      navigate("/sales");
+    },
   });
 
-  const handleEditPR = () => {
+  const sendToPAMutation = useMutation({
+    mutationFn: () => salesPRService.sendToPA(prId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
+    },
+  });
+
+  const resubmitMutation = useMutation({
+    mutationFn: (data: any) => salesPRService.resubmitPR(prId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
+      setIsEditDialogOpen(false);
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: () => paPRService.approvePR(prId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
+      setIsActionDialogOpen(false);
+      setComment("");
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: () => paPRService.rejectPR(prId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
+      setIsActionDialogOpen(false);
+      setComment("");
+    },
+  });
+
+  const actionRequiredMutation = useMutation({
+    mutationFn: () => paPRService.requestActionRequired(prId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
+      queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
+      setIsActionDialogOpen(false);
+      setComment("");
+    },
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case PRStatus.DRAFT:
+        return "default";
+      case PRStatus.UNDER_REVIEW:
+        return "warning";
+      case PRStatus.ACTION_REQUIRED:
+        return "error";
+      case PRStatus.APPROVED:
+        return "success";
+      case PRStatus.REJECTED:
+        return "error";
+      default:
+        return "default";
+    }
+  };
+
+  const handleEdit = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleSubmitPR = () => {
-    if (window.confirm('Are you sure you want to submit this PR for review?')) {
-      submitMutation.mutate(prId!);
+  const handleDelete = () => {
+    if (window.confirm("Are you sure you want to delete this PR?")) {
+      deleteMutation.mutate();
     }
   };
 
-  const handleDeletePR = () => {
-    if (window.confirm('Are you sure you want to delete this PR?')) {
-      deleteMutation.mutate(prId!);
+  const handleSendToPA = () => {
+    if (window.confirm("Send this draft to Pricing Analyst for review?")) {
+      sendToPAMutation.mutate();
     }
   };
 
-  const handlePRFormSubmit = (data: any, action: 'save' | 'submit') => {
-    if (action === 'save') {
-      // Update existing PR as draft
-      updateMutation.mutate({ prId: prId!, data });
+  const handleAction = (type: "approve" | "reject" | "action_required") => {
+    setActionType(type);
+    setIsActionDialogOpen(true);
+  };
+
+  const handleActionSubmit = () => {
+    if (actionType === "approve") {
+      approveMutation.mutate();
+    } else if (actionType === "reject") {
+      rejectMutation.mutate();
     } else {
-      // Update and submit existing PR
-      updateMutation.mutate({ 
-        prId: prId!, 
-        data: { ...data, status: PRStatus.UNDER_REVIEW, submission_date: new Date() }
-      });
+      actionRequiredMutation.mutate();
     }
-  };
-
-  const handleBack = () => {
-    navigate('/sales');
   };
 
   if (isLoading) {
     return (
-      <DashboardLayout title="PR Details">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
-        </Box>
-      </DashboardLayout>
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
+        <CircularProgress />
+      </Box>
     );
   }
 
-  if (error || !pr) {
-    return (
-      <DashboardLayout title="PR Details">
-        <Alert severity="error">Failed to load PR details</Alert>
-      </DashboardLayout>
-    );
+  if (error) {
+    return <Alert severity="error">Failed to load PR details</Alert>;
+  }
+
+  if (!pr) {
+    return <Alert severity="error">PR not found</Alert>;
   }
 
   return (
-    <DashboardLayout title="PR Details">
-      <Box sx={{ mb: 3 }}>
-        {/* Header with Back Button and Actions */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button
-              startIcon={<BackIcon />}
-              onClick={handleBack}
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h4" component="h1">
+          Pricing Request Details
+        </Typography>
+      </Box>
+
+      {/* Status and Actions */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <Chip
+            label={`Sales: ${pr.salesStatus}`}
+            color={getStatusColor(pr.salesStatus) as any}
+          />
+          {pr.analystStatus && (
+            <Chip
+              label={`Analyst: ${pr.analystStatus}`}
+              color={getStatusColor(pr.analystStatus) as any}
+            />
+          )}
+          {pr.assignedTo && (
+            <Chip
+              label={`Assigned to: ${pr.assignedTo}`}
+              color="info"
               variant="outlined"
-              size="small"
-            >
-              Back to Sales Dashboard
-            </Button>
-            <Typography variant="h4" component="h1">
-              PR #{pr.id}
-            </Typography>
-          </Box>
-          
-          {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            {pr.status === PRStatus.DRAFT && (
+            />
+          )}
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 1 }}>
+          {user?.role === UserRole.SALES_EXECUTIVE && (
+            <>
+              {pr.salesStatus === PRStatus.DRAFT && (
+                <>
+                  <Button
+                    startIcon={<EditIcon />}
+                    onClick={handleEdit}
+                    variant="outlined"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    startIcon={<SendIcon />}
+                    onClick={handleSendToPA}
+                    variant="contained"
+                    disabled={sendToPAMutation.isPending}
+                  >
+                    Send to PA
+                  </Button>
+                  <Button
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDelete}
+                    variant="outlined"
+                    color="error"
+                    disabled={deleteMutation.isPending}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+              {pr.salesStatus === PRStatus.ACTION_REQUIRED && (
+                <>
+                  <Button
+                    startIcon={<EditIcon />}
+                    onClick={handleEdit}
+                    variant="outlined"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    startIcon={<SendIcon />}
+                    onClick={handleEdit}
+                    variant="contained"
+                    color="primary"
+                  >
+                    Resubmit
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+
+          {user?.role === UserRole.PRICING_ANALYST &&
+            pr.assignedTo &&
+            (pr.analystStatus === PRStatus.UNDER_REVIEW ||
+              pr.analystStatus === PRStatus.ACTIVE_STATUS) && (
               <>
                 <Button
-                  startIcon={<EditIcon />}
-                  onClick={handleEditPR}
-                  variant="outlined"
-                  color="primary"
-                >
-                  Edit
-                </Button>
-                <Button
-                  startIcon={<SubmitIcon />}
-                  onClick={handleSubmitPR}
+                  startIcon={<ApproveIcon />}
+                  onClick={() => handleAction("approve")}
                   variant="contained"
                   color="success"
-                  disabled={submitMutation.isPending}
                 >
-                  Submit for Review
+                  Approve
                 </Button>
                 <Button
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDeletePR}
-                  variant="outlined"
+                  startIcon={<RejectIcon />}
+                  onClick={() => handleAction("reject")}
+                  variant="contained"
                   color="error"
-                  disabled={deleteMutation.isPending}
                 >
-                  Delete
+                  Reject
+                </Button>
+                <Button
+                  startIcon={<CommentIcon />}
+                  onClick={() => handleAction("action_required")}
+                  variant="outlined"
+                  color="warning"
+                >
+                  Request Action
                 </Button>
               </>
             )}
-            
-            {pr.status === PRStatus.ACTION_REQUIRED && (
-              <Button
-                startIcon={<EditIcon />}
-                onClick={handleEditPR}
-                variant="outlined"
-                color="warning"
-              >
-                Edit
-              </Button>
-            )}
-          </Box>
         </Box>
+      </Box>
 
-        {/* Status and Basic Info */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Grid container spacing={3}>
+        {/* Header Information */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
               <Typography variant="h6" gutterBottom>
-                {pr.accountInfo}
+                Header Information
               </Typography>
-              <Chip
-                label={getStatusLabel(pr.status)}
-                color={getStatusColor(pr.status) as any}
-                size="medium"
-              />
-            </Box>
-            <Typography variant="body2" color="text.secondary">
-              Shipment Date: {format(new Date(pr.shipmentDate), 'MMMM dd, yyyy')}
-            </Typography>
-            {pr.submission_date && (
-              <Typography variant="body2" color="text.secondary">
-                Submitted: {format(new Date(pr.submission_date), 'MMMM dd, yyyy')}
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">
+                    Shipment Date
+                  </Typography>
+                  <Typography variant="body1">
+                    {safeFormatDate(pr.shipmentDate, "MMM dd, yyyy")}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">
+                    Account Info
+                  </Typography>
+                  <Typography variant="body1">
+                    {pr.accountInfo || "N/A"}
+                  </Typography>
+                </Grid>
+                {pr.discount && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Discount
+                    </Typography>
+                    <Typography variant="body1">{pr.discount}</Typography>
+                  </Grid>
+                )}
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">
+                    Daylight Protection
+                  </Typography>
+                  <Typography variant="body1">
+                    {pr.daylightProtect ? "Yes" : "No"}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        {/* Origin and Destination */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Origin
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {pr.startingAddress}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pr.startingState}, {pr.startingZip}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pr.startingCountry}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Destination
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {pr.destinationAddress}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pr.destinationState}, {pr.destinationZip}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pr.destinationCountry}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+        {/* Origin Information */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Origin Information
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Address
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {pr.originAddress || "N/A"}
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {pr.originState || "N/A"}, {pr.originZip || "N/A"}
+              </Typography>
+              <Typography variant="body1">
+                {pr.originCountry || "N/A"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Destination Information */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Destination Information
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Address
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {pr.destAddress || "N/A"}
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                {pr.destState || "N/A"}, {pr.destZip || "N/A"}
+              </Typography>
+              <Typography variant="body1">{pr.destCountry || "N/A"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Additional Services */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Additional Services
+              </Typography>
+              <Grid container spacing={2}>
+                {pr.accessorial && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Accessorial
+                    </Typography>
+                    <Typography variant="body1">{pr.accessorial}</Typography>
+                  </Grid>
+                )}
+                {pr.pickup && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Pickup
+                    </Typography>
+                    <Typography variant="body1">{pr.pickup}</Typography>
+                  </Grid>
+                )}
+                {pr.delivery && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Delivery
+                    </Typography>
+                    <Typography variant="body1">{pr.delivery}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Items */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Items ({pr.items.length})
-            </Typography>
-            {pr.items.map((item, index) => (
-              <Paper key={index} sx={{ p: 2, mb: 2 }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Item {index + 1}: {item.itemName}
-                </Typography>
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Items ({pr.items?.length || 0})
+              </Typography>
+              {pr.items && pr.items.length > 0 ? (
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Commodity Class:</strong> {item.commodityClass}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Total Weight:</strong> {item.totalWeight} lbs
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Handling Units:</strong> {item.handlingUnits}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Number of Pieces:</strong> {item.numberOfPieces}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Container Types:</strong> {item.containerTypes}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2">
-                      <strong>Number of Pallets:</strong> {item.numberOfPallets}
-                    </Typography>
-                  </Grid>
+                  {pr.items.map((item, index) => (
+                    <Grid item xs={12} md={6} key={item.id || index}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle1" gutterBottom>
+                            {item.itemName || "N/A"}
+                          </Typography>
+                          <Grid container spacing={1}>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Commodity Class
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.commodityClass || "N/A"}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Total Weight
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.totalWeight || 0} lbs
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Handling Unit
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.handlingUnit || "N/A"}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Pieces
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.noOfPieces || 0}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Container Type
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.containerType || "N/A"}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Pallets
+                              </Typography>
+                              <Typography variant="body2">
+                                {item.noOfPallets || 0}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
                 </Grid>
-              </Paper>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Additional Services */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Additional Services
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2">
-                  <strong>Accessorial:</strong> {pr.accessorial ? 'Yes' : 'No'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2">
-                  <strong>Pickup:</strong> {pr.pickup ? 'Yes' : 'No'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2">
-                  <strong>Delivery:</strong> {pr.delivery ? 'Yes' : 'No'}
-                </Typography>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Insurance */}
-        {pr.daylightProtectCoverage && (
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Insurance
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                <strong>Daylight Protect Coverage:</strong> Yes
-              </Typography>
-              {pr.insuranceDescription && (
-                <Typography variant="body2" gutterBottom>
-                  <strong>Description:</strong> {pr.insuranceDescription}
-                </Typography>
-              )}
-              {pr.insuranceNote && (
-                <Typography variant="body2">
-                  <strong>Note:</strong> {pr.insuranceNote}
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No items available
                 </Typography>
               )}
             </CardContent>
           </Card>
-        )}
+        </Grid>
 
-        {/* Discount */}
-        {pr.discount > 0 && (
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Pricing
-              </Typography>
-              <Typography variant="body2">
-                <strong>Discount:</strong> {pr.discount}%
-              </Typography>
-            </CardContent>
-          </Card>
+        {/* Comments */}
+        {pr.comments && pr.comments.length > 0 && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Comments ({pr.comments.length})
+                </Typography>
+                <List>
+                  {pr.comments.map((comment) => (
+                    <ListItem key={comment.id} divider>
+                      <ListItemText
+                        primary={comment.commentText || "N/A"}
+                        secondary={safeFormatDate(
+                          comment.createdAt,
+                          "MMM dd, yyyy HH:mm"
+                        )}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
         )}
-      </Box>
+      </Grid>
 
-      {/* Edit PR Dialog */}
+      {/* Edit Dialog */}
       <Dialog
         open={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Edit Pricing Request
-          <IconButton
-            onClick={() => setIsEditDialogOpen(false)}
-            size="small"
-            sx={{ color: 'text.secondary' }}
-          >
-            <CloseIcon />
-          </IconButton>
+        <DialogTitle>
+          {pr.salesStatus === PRStatus.ACTION_REQUIRED
+            ? "Resubmit PR"
+            : "Edit PR"}
         </DialogTitle>
         <DialogContent>
           <PRForm
             initialData={pr}
-            onSubmit={handlePRFormSubmit}
-            onCancel={() => {}} // Empty function since cancel is handled in dialog header
+            onSubmit={(data) => {
+              if (pr.salesStatus === PRStatus.ACTION_REQUIRED) {
+                resubmitMutation.mutate(data);
+              } else {
+                updateMutation.mutate(data);
+              }
+            }}
+            onCancel={() => setIsEditDialogOpen(false)}
+            isLoading={updateMutation.isPending || resubmitMutation.isPending}
+            submitLabel={
+              pr.salesStatus === PRStatus.ACTION_REQUIRED
+                ? "Resubmit"
+                : "Update"
+            }
           />
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+
+      {/* Action Dialog */}
+      <Dialog
+        open={isActionDialogOpen}
+        onClose={() => setIsActionDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {actionType === "approve"
+            ? "Approve PR"
+            : actionType === "reject"
+            ? "Reject PR"
+            : "Request Action"}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="Comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            margin="normal"
+            required={actionType !== "approve"}
+            helperText={
+              actionType === "approve" ? "Optional comment" : "Required comment"
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsActionDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleActionSubmit}
+            variant="contained"
+            color={
+              actionType === "approve"
+                ? "success"
+                : actionType === "reject"
+                ? "error"
+                : "warning"
+            }
+            disabled={
+              (actionType !== "approve" && !comment.trim()) ||
+              approveMutation.isPending ||
+              rejectMutation.isPending ||
+              actionRequiredMutation.isPending
+            }
+          >
+            {actionType === "approve"
+              ? "Approve"
+              : actionType === "reject"
+              ? "Reject"
+              : "Request Action"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
-}; 
+};

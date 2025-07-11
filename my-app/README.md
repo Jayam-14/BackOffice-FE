@@ -1,77 +1,187 @@
-# BackOffice Pricing Request Management System
+# Backoffice Management System - Frontend
 
-A comprehensive React.js web application for managing pricing requests with role-based access control for Sales Executives and Pricing Analysts.
+A React-based frontend application that integrates with the FastAPI Backoffice Management System.
 
 ## Features
 
-### 🔐 Authentication
-- **Signup/Login**: Secure authentication for both Sales Executives and Pricing Analysts
-- **Role-based Access**: Automatic redirection based on user role
-- **Session Management**: Persistent login state with localStorage
+- 🔐 **JWT Authentication** - Secure login/logout with token management
+- 👥 **Role-Based Access** - Sales Executive and Pricing Analyst dashboards
+- 📋 **Pricing Request Management** - Complete CRUD operations
+- 🎨 **Modern UI** - Material-UI components with responsive design
+- 🔄 **Real-time Updates** - React Query for efficient data management
+- 📱 **Responsive Design** - Works on desktop and mobile devices
 
-### 👨‍💼 Sales Executive Dashboard
-- **View PRs**: Display all PRs created by the Sales Executive
-- **Create PR**: Comprehensive form with all required fields
-- **Edit/Delete**: Full CRUD operations for draft PRs
-- **Submit for Review**: Submit PRs to Pricing Analysts
-- **Status Tracking**: Real-time status updates (Draft, Under Review, Action Required, Approved, Rejected)
+## Tech Stack
 
-### 📊 Pricing Analyst Dashboard
-- **Review PRs**: Tabbed interface for different PR statuses
-- **Approve/Reject**: Direct approval or rejection of PRs
-- **Request Changes**: Add comments to request modifications
-- **Status Management**: Comprehensive status tracking and updates
+- **Frontend**: React 18, TypeScript
+- **UI Framework**: Material-UI (MUI)
+- **State Management**: React Query (TanStack Query)
+- **Routing**: React Router v6
+- **Build Tool**: Vite
+- **Package Manager**: npm
 
-### 📝 PR Form Features
-- **Header Section**: Shipment Date, Account Info, Discount
-- **Origin Section**: Starting Address, State, Zip, Country
-- **Destination Section**: Destination Address, State, Zip, Country
-- **Item Information**: Multiple items with detailed specifications
-- **Additional Services**: Accessorial, Pickup, Delivery options
-- **Insurance**: Daylight Protect Coverage with description and notes
+## Quick Start
 
-### 💬 Comments System
-- **Real-time Comments**: Add comments to any PR
-- **Role-based Comments**: Comments show user role and timestamp
-- **Change Requests**: Analysts can request changes with comments
+### 1. Install Dependencies
 
-## Technology Stack
+```bash
+npm install
+```
 
-- **React 18** with TypeScript
-- **Vite** for fast development and building
-- **Material-UI (MUI)** for beautiful, responsive UI components
-- **TanStack Query** for efficient data fetching and caching
-- **React Hook Form** with **Zod** for form validation
-- **React Router** for client-side routing
-- **Date-fns** for date manipulation
+### 2. Start Development Server
 
-## Getting Started
+```bash
+npm run dev
+```
 
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
+The application will be available at http://localhost:5173
 
-### Installation
+### 3. Backend Integration
 
-1. **Navigate to the project directory:**
-   ```bash
-   cd my-app
-   ```
+Make sure your FastAPI backend is running on `http://localhost:8080` before using the frontend.
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+## User Workflows
 
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+### Sales Executive Workflow
 
-4. **Open your browser and visit:**
-   ```
-   http://localhost:5173
-   ```
+1. **Login** - Use Sales Executive credentials
+2. **Dashboard** - View all pricing requests with status filtering
+3. **Create PR** - Create new pricing requests (save as draft or submit for review)
+4. **View Details** - Click on any PR to view complete details
+5. **Edit/Delete** - Modify draft PRs or delete them
+6. **Resubmit** - Update action-required PRs and resubmit
+
+### Pricing Analyst Workflow
+
+1. **Login** - Use Pricing Analyst credentials
+2. **Available PRs** - View all pricing requests available for assignment
+3. **Assign** - Click assign button to take ownership of a PR
+4. **My PRs** - View assigned pricing requests
+5. **Review** - View PR details and approve/reject/request action
+6. **Comments** - Add comments when rejecting or requesting action
+
+## API Integration
+
+The frontend integrates with the following FastAPI endpoints:
+
+### Authentication
+
+- `POST /auth/login` - User login
+- `POST /auth/register` - User registration
+- `POST /auth/logout` - User logout
+- `GET /auth/profile` - Get user profile
+
+### Sales Executive Endpoints
+
+- `POST /sales/pr/save` - Save PR as draft
+- `POST /sales/pr/submit` - Submit PR for review
+- `GET /sales/pr` - Get all PRs
+- `GET /sales/pr/{id}` - Get PR details
+- `PUT /sales/pr/{id}` - Update PR
+- `DELETE /sales/pr/{id}` - Delete PR
+- `POST /sales/pr/{id}/resubmit` - Resubmit action-required PR
+
+### Pricing Analyst Endpoints
+
+- `GET /pa/pr` - Get available PRs
+- `GET /pa/pr/my` - Get assigned PRs
+- `GET /pa/pr/{id}` - Get PR details
+- `POST /pa/pr/{id}/assign` - Assign PR to self
+- `POST /pa/pr/{id}/approve-reject` - Approve/reject/request action
+
+## Demo Accounts
+
+### Sales Executive Accounts
+
+- **Email**: john.smith@company.com
+- **Password**: 123456
+
+- **Email**: michael.chen@company.com
+- **Password**: 123456
+
+- **Email**: david.wilson@company.com
+- **Password**: 123456
+
+### Pricing Analyst Accounts
+
+- **Email**: sarah.analyst@company.com
+- **Password**: 123456
+
+- **Email**: emily.rodriguez@company.com
+- **Password**: 123456
+
+- **Email**: lisa.thompson@company.com
+- **Password**: 123456
+
+## Project Structure
+
+```
+src/
+├── component/           # Reusable UI components
+│   ├── DashboardLayout.tsx
+│   ├── PRForm.tsx
+│   └── ...
+├── contexts/           # React contexts
+│   └── AuthContext.tsx
+├── pages/             # Page components
+│   ├── AuthPage.tsx
+│   ├── SalesDashboard.tsx
+│   ├── AnalystDashboard.tsx
+│   └── PRDetailsPage.tsx
+├── services/          # API services
+│   ├── api.ts
+│   └── prService.ts
+├── types/             # TypeScript type definitions
+│   └── index.ts
+├── utils/             # Utility functions
+└── App.tsx           # Main application component
+```
+
+## Key Features
+
+### Authentication & Authorization
+
+- JWT token-based authentication
+- Automatic token storage and retrieval
+- Role-based route protection
+- Automatic logout on token expiration
+
+### Pricing Request Management
+
+- **Create**: Sales executives can create new pricing requests
+- **Save as Draft**: Save work in progress
+- **Submit for Review**: Send to pricing analysts
+- **View Details**: Complete PR information with items and comments
+- **Edit**: Modify draft PRs
+- **Delete**: Remove draft PRs
+- **Resubmit**: Update action-required PRs
+
+### Pricing Analyst Workflow
+
+- **Available PRs**: View all PRs available for assignment
+- **Assign**: Take ownership of pricing requests
+- **My PRs**: View assigned pricing requests
+- **Review**: Approve, reject, or request additional information
+- **Comments**: Add detailed comments for decisions
+
+### Status Management
+
+- **Draft**: Initial state when saved
+- **Under Review**: When submitted for review
+- **Action Required**: Needs attention from sales
+- **Approved**: Final approval by PA
+- **Rejected**: Rejected by PA
+- **Closed**: Completed
+
+## Development
+
+### Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
 
 ### Available Scripts
 
@@ -79,94 +189,48 @@ A comprehensive React.js web application for managing pricing requests with role
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
+- `npm run type-check` - Run TypeScript type checking
 
-## Usage
+### API Configuration
 
-### Authentication
-1. **Sign Up**: Create a new account with your role (Sales Executive or Pricing Analyst)
-2. **Login**: Use your email and password to access the system
-3. **Role-based Redirect**: You'll be automatically redirected to your appropriate dashboard
+The API configuration is in `src/config/api.ts`. Update the `BASE_URL` to point to your FastAPI backend:
 
-### Sales Executive Workflow
-1. **Create PR**: Click "Create PR" button to start a new pricing request
-2. **Fill Form**: Complete all required fields in the comprehensive form
-3. **Save Draft**: Save as draft for later editing
-4. **Submit for Review**: Submit to Pricing Analyst for approval
-5. **Track Status**: Monitor PR status and respond to change requests
-
-### Pricing Analyst Workflow
-1. **Review PRs**: View PRs under different status tabs
-2. **Approve/Reject**: Directly approve or reject PRs under review
-3. **Request Changes**: Add comments to request modifications
-4. **Track Progress**: Monitor all PRs through their lifecycle
-
-## Project Structure
-
-```
-src/
-├── components/          # Reusable UI components
-│   ├── LoginForm.tsx
-│   ├── SignupForm.tsx
-│   ├── DashboardLayout.tsx
-│   ├── PRForm.tsx
-│   └── PRViewDialog.tsx
-├── pages/              # Page components
-│   ├── AuthPage.tsx
-│   ├── SalesDashboard.tsx
-│   └── AnalystDashboard.tsx
-├── contexts/           # React contexts
-│   └── AuthContext.tsx
-├── services/           # API and data services
-│   └── mockData.ts
-├── types/              # TypeScript type definitions
-│   └── index.ts
-├── utils/              # Utility functions
-│   └── validation.ts
-└── App.tsx            # Main application component
+```typescript
+export const API_CONFIG = {
+  BASE_URL: "http://localhost:8080",
+  // ... other config
+};
 ```
 
-## Mock Data
+## Troubleshooting
 
-The application includes comprehensive mock data for testing:
-- Sample PRs with different statuses
-- User authentication simulation
-- Realistic form data and comments
+### CORS Issues
 
-## Status Workflow
+If you encounter CORS errors, ensure your FastAPI backend has CORS properly configured:
 
-| Status | Sales Executive | Pricing Analyst |
-|--------|----------------|-----------------|
-| **Draft** | Create, Edit, Delete | Not Visible |
-| **Under Review** | View Only | Approve, Reject, Request Changes |
-| **Action Required** | Edit & Re-submit | Add Comments |
-| **Approved** | View Only | View Only |
-| **Rejected** | View Only | View Only |
+```python
+from fastapi.middleware.cors import CORSMiddleware
 
-## Features Implemented
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
 
-✅ **Complete Authentication System**
-✅ **Role-based Access Control**
-✅ **Sales Executive Dashboard**
-✅ **Pricing Analyst Dashboard**
-✅ **Comprehensive PR Form**
-✅ **Real-time Status Tracking**
-✅ **Comments System**
-✅ **Responsive Material-UI Design**
-✅ **Form Validation with Zod**
-✅ **TanStack Query Integration**
-✅ **TypeScript Type Safety**
+### Authentication Issues
 
-## Future Enhancements
+- Clear browser localStorage if tokens are corrupted
+- Check that the backend is running on the correct port
+- Verify JWT token expiration settings
 
-- [ ] Real backend API integration
-- [ ] File upload for documents
-- [ ] Email notifications
-- [ ] Advanced filtering and search
-- [ ] Export functionality
-- [ ] Mobile app version
-- [ ] Real-time notifications
-- [ ] Audit trail
-- [ ] Bulk operations
+### API Connection Issues
+
+- Ensure the backend is running on `http://localhost:8080`
+- Check network connectivity
+- Verify API endpoint URLs in the configuration
 
 ## Contributing
 

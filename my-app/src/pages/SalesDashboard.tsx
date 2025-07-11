@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -11,281 +11,340 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   Alert,
-  CircularProgress
-} from '@mui/material';
+  CircularProgress,
+  Tabs,
+  Tab,
+} from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as ViewIcon,
-  Send as SubmitIcon
-} from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { DashboardLayout } from '../component/DashboardLayout';
-import { salesPRService } from '../services/prService';
-import { useAuth } from '../contexts/AuthContext';
-import { PRStatus, UserRole } from '../types';
-import { PRForm } from '../component/PRForm';
-import { PRViewDialog } from '../component/PRViewDialog';
+} from "@mui/icons-material";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { useAuth } from "../contexts/AuthContext";
+import { salesPRService } from "../services/prService";
+import { PRStatus } from "../types";
+import { PRForm } from "../component/PRForm";
+import type { PR, PRCreateData } from "../types";
+
+// Safe date formatting function
+const safeFormatDate = (date: any, formatString: string): string => {
+  try {
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return "Invalid Date";
+    }
+    return format(dateObj, formatString);
+  } catch (error) {
+    return "Invalid Date";
+  }
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
     case PRStatus.DRAFT:
-      return 'default';
+      return "default";
     case PRStatus.UNDER_REVIEW:
-      return 'warning';
+      return "warning";
     case PRStatus.ACTION_REQUIRED:
-      return 'error';
+      return "error";
     case PRStatus.APPROVED:
-      return 'success';
+      return "success";
     case PRStatus.REJECTED:
-      return 'error';
+      return "error";
     default:
-      return 'default';
+      return "default";
   }
 };
 
 const getStatusLabel = (status: string) => {
   switch (status) {
     case PRStatus.DRAFT:
-      return 'Draft';
+      return "Draft";
     case PRStatus.UNDER_REVIEW:
-      return 'Under Review';
+      return "Under Review";
     case PRStatus.ACTION_REQUIRED:
-      return 'Action Required';
+      return "Action Required";
     case PRStatus.APPROVED:
-      return 'Approved';
+      return "Approved";
     case PRStatus.REJECTED:
-      return 'Rejected';
+      return "Rejected";
     default:
       return status;
   }
 };
 
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`simple-tabpanel-${index}`}
+      aria-labelledby={`simple-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 export const SalesDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedPR, setSelectedPR] = useState<any>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
 
-  console.log('SalesDashboard - User:', user);
-  console.log('SalesDashboard - User enabled:', !!user);
-  
+  console.log("SalesDashboard - User:", user);
 
-
-  const { data: prs, isLoading, error } = useQuery({
-    queryKey: ['sales-prs', user?.id, user?.role],
+  const {
+    data: prs,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["sales-prs", user?.id],
     queryFn: async () => {
-      console.log('SalesDashboard - Fetching Sales PRs...');
+      console.log("SalesDashboard - Fetching Sales PRs...");
       try {
         const result = await salesPRService.getPRs();
-        console.log('SalesDashboard - Sales PRs fetched successfully:', result);
-        console.log('SalesDashboard - PRs type:', typeof result);
-        console.log('SalesDashboard - PRs length:', Array.isArray(result) ? result.length : 'Not an array');
-        if (Array.isArray(result) && result.length > 0) {
-          console.log('SalesDashboard - First PR structure:', result[0]);
-        }
+        console.log("SalesDashboard - Sales PRs fetched successfully:", result);
         return result;
       } catch (err) {
-        console.error('SalesDashboard - Error fetching PRs:', err);
+        console.error("SalesDashboard - Error fetching PRs:", err);
         throw err;
       }
     },
-    enabled: !!user
+    enabled: !!user,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => salesPRService.createPR(data),
+    mutationFn: (data: PRCreateData) => salesPRService.createPR(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
       setIsCreateDialogOpen(false);
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ prId, data }: { prId: string; data: any }) => salesPRService.updatePR(prId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-      setIsEditDialogOpen(false);
-    }
+    },
   });
 
   const submitMutation = useMutation({
-    mutationFn: (prData: any) => salesPRService.submitPR(prData),
+    mutationFn: (data: PRCreateData) => salesPRService.submitPR(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
+      setIsCreateDialogOpen(false);
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (prId: string) => salesPRService.deletePR(prId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
+    },
   });
 
   const handleCreatePR = () => {
     setIsCreateDialogOpen(true);
   };
 
-  const handleViewPR = (pr: any) => {
-    setSelectedPR(pr);
-    setIsViewDialogOpen(true);
+  const handleViewPR = (prId: string) => {
+    navigate(`/pr/${prId}`);
   };
 
-  const handleEditPR = (pr: any) => {
-    setSelectedPR(pr);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleSubmitPR = (pr: any) => {
-    submitMutation.mutate(pr);
+  const handleEditPR = (prId: string) => {
+    navigate(`/pr/${prId}`);
   };
 
   const handleDeletePR = (prId: string) => {
-    if (window.confirm('Are you sure you want to delete this PR?')) {
+    if (window.confirm("Are you sure you want to delete this PR?")) {
       deleteMutation.mutate(prId);
     }
   };
 
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  const filterPRsByStatus = (status: string) => {
+    return prs?.filter((pr) => pr.salesStatus === status) || [];
+  };
+
   if (isLoading) {
     return (
-      <DashboardLayout title="Sales Dashboard">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box sx={{ p: 3 }}>
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="400px"
+        >
           <CircularProgress />
         </Box>
-      </DashboardLayout>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout title="Sales Dashboard">
+      <Box sx={{ p: 3 }}>
         <Alert severity="error">Failed to load PRs</Alert>
-      </DashboardLayout>
+      </Box>
     );
   }
 
-  return (
-    <DashboardLayout title="Sales Dashboard">
-      <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            Pricing Requests
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreatePR}
-            sx={{ backgroundColor: '#1976d2' }}
+  const renderPRCard = (pr: PR) => (
+    <Grid item xs={12} md={6} lg={4} key={pr.id}>
+      <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              mb: 2,
+            }}
           >
-            Create PR
-          </Button>
-        </Box>
-
-        <Grid container spacing={3}>
-          {prs?.map((pr) => (
-            <Grid item xs={12} md={6} lg={4} key={pr.id}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                    <Typography variant="h6" component="h2" noWrap>
-                      {pr.accountInfo}
-                    </Typography>
-                    <Chip
-                      label={getStatusLabel(pr.status)}
-                      color={getStatusColor(pr.status) as any}
-                      size="small"
-                    />
-                  </Box>
-                  
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Shipment: {format(new Date(pr.shipmentDate), 'MMM dd, yyyy')}
-                  </Typography>
-                  
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    From: {pr.startingAddress}, {pr.startingState}
-                  </Typography>
-                  
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    To: {pr.destinationAddress}, {pr.destinationState}
-                  </Typography>
-                  
-                  <Typography variant="body2" color="text.secondary">
-                    Items: {pr.items.length} item(s)
-                  </Typography>
-                  
-                  <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleViewPR(pr)}
-                      color="primary"
-                    >
-                      <ViewIcon />
-                    </IconButton>
-                    
-                    {pr.status === PRStatus.DRAFT && (
-                      <>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditPR(pr)}
-                          color="primary"
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        
-                        <IconButton
-                          size="small"
-                          onClick={() => handleSubmitPR(pr)}
-                          color="success"
-                          disabled={submitMutation.isPending}
-                        >
-                          <SubmitIcon />
-                        </IconButton>
-                        
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeletePR(pr.id)}
-                          color="error"
-                          disabled={deleteMutation.isPending}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </>
-                    )}
-                    
-                    {pr.status === PRStatus.ACTION_REQUIRED && (
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditPR(pr)}
-                        color="warning"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-
-        {prs?.length === 0 && (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
-            <Typography variant="h6" color="text.secondary">
-              No pricing requests found
+            <Typography variant="h6" component="h2" noWrap>
+              {pr.accountInfo}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Create your first pricing request to get started
-            </Typography>
+            <Chip
+              label={getStatusLabel(pr.salesStatus)}
+              color={getStatusColor(pr.salesStatus) as any}
+              size="small"
+            />
           </Box>
-        )}
+
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Shipment: {safeFormatDate(pr.shipmentDate, "MMM dd, yyyy")}
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            From: {pr.originAddress ? `${pr.originAddress}, ` : ""}
+            {pr.originState || "N/A"}
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            To: {pr.destAddress ? `${pr.destAddress}, ` : ""}
+            {pr.destState || "N/A"}
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary">
+            Items: {pr.items?.length || 0} item(s)
+          </Typography>
+
+          <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <IconButton
+              size="small"
+              onClick={() => handleViewPR(pr.id)}
+              color="primary"
+            >
+              <ViewIcon />
+            </IconButton>
+
+            {pr.salesStatus === PRStatus.DRAFT && (
+              <>
+                <IconButton
+                  size="small"
+                  onClick={() => handleEditPR(pr.id)}
+                  color="primary"
+                >
+                  <EditIcon />
+                </IconButton>
+
+                <IconButton
+                  size="small"
+                  onClick={() => handleDeletePR(pr.id)}
+                  color="error"
+                  disabled={deleteMutation.isPending}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    </Grid>
+  );
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Typography variant="h4" component="h1">
+          Sales Dashboard
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreatePR}
+          sx={{ backgroundColor: "#1976d2" }}
+        >
+          Create PR
+        </Button>
       </Box>
+
+      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Tabs value={tabValue} onChange={handleTabChange}>
+          <Tab label="All" />
+          <Tab label="Drafts" />
+          <Tab label="Under Review" />
+          <Tab label="Action Required" />
+          <Tab label="Approved" />
+          <Tab label="Rejected" />
+        </Tabs>
+      </Box>
+
+      <TabPanel value={tabValue} index={0}>
+        <Grid container spacing={3}>
+          {prs?.map(renderPRCard)}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={1}>
+        <Grid container spacing={3}>
+          {filterPRsByStatus(PRStatus.DRAFT).map(renderPRCard)}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={2}>
+        <Grid container spacing={3}>
+          {filterPRsByStatus(PRStatus.UNDER_REVIEW).map(renderPRCard)}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={3}>
+        <Grid container spacing={3}>
+          {filterPRsByStatus(PRStatus.ACTION_REQUIRED).map(renderPRCard)}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={4}>
+        <Grid container spacing={3}>
+          {filterPRsByStatus(PRStatus.APPROVED).map(renderPRCard)}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={5}>
+        <Grid container spacing={3}>
+          {filterPRsByStatus(PRStatus.REJECTED).map(renderPRCard)}
+        </Grid>
+      </TabPanel>
 
       {/* Create PR Dialog */}
       <Dialog
@@ -296,53 +355,26 @@ export const SalesDashboard: React.FC = () => {
       >
         <DialogTitle>Create New Pricing Request</DialogTitle>
         <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <Tabs value={tabValue} onChange={handleTabChange}>
+              <Tab label="Save as Draft" />
+              <Tab label="Submit for Review" />
+            </Tabs>
+          </Box>
           <PRForm
             onSubmit={(data) => {
-              createMutation.mutate(data);
+              if (tabValue === 0) {
+                createMutation.mutate(data);
+              } else {
+                submitMutation.mutate(data);
+              }
             }}
             onCancel={() => setIsCreateDialogOpen(false)}
+            isLoading={createMutation.isPending || submitMutation.isPending}
+            submitLabel={tabValue === 0 ? "Save as Draft" : "Submit for Review"}
           />
         </DialogContent>
       </Dialog>
-
-      {/* Edit PR Dialog */}
-      <Dialog
-        open={isEditDialogOpen}
-        onClose={() => setIsEditDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Edit Pricing Request</DialogTitle>
-        <DialogContent>
-          {selectedPR && (
-            <PRForm
-              initialData={selectedPR}
-              onSubmit={(data) => {
-                updateMutation.mutate({ prId: selectedPR.id, data });
-              }}
-              onCancel={() => setIsEditDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* View PR Dialog */}
-      <Dialog
-        open={isViewDialogOpen}
-        onClose={() => setIsViewDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>View Pricing Request</DialogTitle>
-        <DialogContent>
-          {selectedPR && (
-            <PRViewDialog
-              pr={selectedPR}
-              onClose={() => setIsViewDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </DashboardLayout>
+    </Box>
   );
-}; 
+};

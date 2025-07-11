@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -8,59 +8,68 @@ import {
   Grid,
   Chip,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
   CircularProgress,
   Tabs,
-  Tab
-} from '@mui/material';
+  Tab,
+} from "@mui/material";
 import {
   Visibility as ViewIcon,
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
-  Comment as CommentIcon
-} from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { DashboardLayout } from '../component/DashboardLayout';
-import { paPRService } from '../services/prService';
-import { useAuth } from '../contexts/AuthContext';
-import { PRStatus, UserRole } from '../types';
-import type { PR } from '../types';
-import { PRViewDialog } from '../component/PRViewDialog';
+  Comment as CommentIcon,
+  Person as AssignIcon,
+} from "@mui/icons-material";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { useAuth } from "../contexts/AuthContext";
+import { paPRService } from "../services/prService";
+import { PRStatus, UserRole } from "../types";
+import type { PR } from "../types";
+
+// Safe date formatting function
+const safeFormatDate = (date: any, formatString: string): string => {
+  try {
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return "Invalid Date";
+    }
+    return format(dateObj, formatString);
+  } catch (error) {
+    return "Invalid Date";
+  }
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
     case PRStatus.DRAFT:
-      return 'default';
+      return "default";
     case PRStatus.UNDER_REVIEW:
-      return 'warning';
+      return "warning";
     case PRStatus.ACTION_REQUIRED:
-      return 'error';
+      return "error";
     case PRStatus.APPROVED:
-      return 'success';
+      return "success";
     case PRStatus.REJECTED:
-      return 'error';
+      return "error";
     default:
-      return 'default';
+      return "default";
   }
 };
 
 const getStatusLabel = (status: string) => {
   switch (status) {
     case PRStatus.DRAFT:
-      return 'Draft';
+      return "Draft";
     case PRStatus.UNDER_REVIEW:
-      return 'Under Review';
+      return "Under Review";
     case PRStatus.ACTION_REQUIRED:
-      return 'Action Required';
+      return "Action Required";
     case PRStatus.APPROVED:
-      return 'Approved';
+      return "Approved";
     case PRStatus.REJECTED:
-      return 'Rejected';
+      return "Rejected";
     default:
       return status;
   }
@@ -90,58 +99,71 @@ function TabPanel(props: TabPanelProps) {
 
 export const AnalystDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedPR, setSelectedPR] = useState<any>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
 
-  console.log('AnalystDashboard - User:', user);
-  console.log('AnalystDashboard - User role:', user?.role);
+  console.log("AnalystDashboard - User:", user);
+  console.log("AnalystDashboard - User role:", user?.role);
 
-  const { data: prs, isLoading, error } = useQuery({
-    queryKey: ['pa-prs', user?.id, user?.role],
+  const {
+    data: availablePRs,
+    isLoading: isLoadingAvailable,
+    error: errorAvailable,
+  } = useQuery({
+    queryKey: ["pa-available-prs", user?.id],
     queryFn: async () => {
-      console.log('AnalystDashboard - Fetching PA PRs...');
+      console.log("AnalystDashboard - Fetching available PRs...");
       try {
         const result = await paPRService.getAvailablePRs();
-        console.log('AnalystDashboard - PA PRs fetched successfully:', result);
+        console.log(
+          "AnalystDashboard - Available PRs fetched successfully:",
+          result
+        );
         return result;
       } catch (err) {
-        console.error('AnalystDashboard - Error fetching PA PRs:', err);
+        console.error("AnalystDashboard - Error fetching available PRs:", err);
         throw err;
       }
     },
-    enabled: !!user
+    enabled: !!user,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: (prId: string) => paPRService.approvePR(prId),
+  const {
+    data: myPRs,
+    isLoading: isLoadingMy,
+    error: errorMy,
+  } = useQuery({
+    queryKey: ["pa-my-prs", user?.id],
+    queryFn: async () => {
+      console.log("AnalystDashboard - Fetching my assigned PRs...");
+      try {
+        const result = await paPRService.getMyAssignedPRs();
+        console.log("AnalystDashboard - My PRs fetched successfully:", result);
+        return result;
+      } catch (err) {
+        console.error("AnalystDashboard - Error fetching my PRs:", err);
+        throw err;
+      }
+    },
+    enabled: !!user,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (prId: string) => paPRService.assignPR(prId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["pa-available-prs"] });
+      queryClient.invalidateQueries({ queryKey: ["pa-my-prs"] });
+    },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: (prId: string) => paPRService.rejectPR(prId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prs'] });
-    }
-  });
-
-  const handleViewPR = (pr: any) => {
-    setSelectedPR(pr);
-    setIsViewDialogOpen(true);
+  const handleViewPR = (prId: string) => {
+    navigate(`/pr/${prId}`);
   };
 
-  const handleApprovePR = (prId: string) => {
-    if (window.confirm('Are you sure you want to approve this PR?')) {
-      approveMutation.mutate(prId);
-    }
-  };
-
-  const handleRejectPR = (prId: string) => {
-    if (window.confirm('Are you sure you want to reject this PR?')) {
-      rejectMutation.mutate(prId);
+  const handleAssignPR = (prId: string) => {
+    if (window.confirm("Assign this pricing request to yourself?")) {
+      assignMutation.mutate(prId);
     }
   };
 
@@ -149,94 +171,121 @@ export const AnalystDashboard: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const filterPRsByStatus = (status: string) => {
-    return prs?.filter(pr => pr.status === status) || [];
+  const filterPRsByStatus = (prs: PR[], status: string) => {
+    return prs?.filter((pr) => pr.analystStatus === status) || [];
   };
 
-  if (isLoading) {
+  if (isLoadingAvailable || isLoadingMy) {
     return (
-      <DashboardLayout title="Analyst Dashboard">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box sx={{ p: 3 }}>
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="400px"
+        >
           <CircularProgress />
         </Box>
-      </DashboardLayout>
+      </Box>
     );
   }
 
-  if (error) {
+  if (errorAvailable || errorMy) {
     return (
-      <DashboardLayout title="Analyst Dashboard">
+      <Box sx={{ p: 3 }}>
         <Alert severity="error">Failed to load PRs</Alert>
-      </DashboardLayout>
+      </Box>
     );
   }
 
-  const renderPRCard = (pr: PR) => (
+  const renderPRCard = (pr: PR, showAssignButton = false) => (
     <Grid item xs={12} md={6} lg={4} key={pr.id}>
-      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <CardContent sx={{ flexGrow: 1 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              mb: 2,
+            }}
+          >
             <Typography variant="h6" component="h2" noWrap>
               {pr.accountInfo}
             </Typography>
             <Chip
-              label={getStatusLabel(pr.status)}
-              color={getStatusColor(pr.status) as any}
+              label={getStatusLabel(pr.analystStatus || pr.salesStatus)}
+              color={getStatusColor(pr.analystStatus || pr.salesStatus) as any}
               size="small"
             />
           </Box>
-          
+
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Shipment: {format(new Date(pr.shipmentDate), 'MMM dd, yyyy')}
+            Shipment: {safeFormatDate(pr.shipmentDate, "MMM dd, yyyy")}
           </Typography>
-          
+
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            From: {pr.startingAddress}, {pr.startingState}
+            From: {pr.originAddress ? `${pr.originAddress}, ` : ""}
+            {pr.originState || "N/A"}
           </Typography>
-          
+
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            To: {pr.destinationAddress}, {pr.destinationState}
+            To: {pr.destAddress ? `${pr.destAddress}, ` : ""}
+            {pr.destState || "N/A"}
           </Typography>
-          
+
           <Typography variant="body2" color="text.secondary">
-            Items: {pr.items.length} item(s)
+            Items: {pr.items?.length || 0} item(s)
           </Typography>
-          
-          <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+
+          <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
             <IconButton
               size="small"
-              onClick={() => handleViewPR(pr)}
+              onClick={() => handleViewPR(pr.id)}
               color="primary"
+              title="View Details"
             >
               <ViewIcon />
             </IconButton>
-            
-            {pr.status === PRStatus.UNDER_REVIEW && (
+
+            {showAssignButton && !pr.assignedTo && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => handleAssignPR(pr.id)}
+                color="success"
+                disabled={assignMutation.isPending}
+                startIcon={<AssignIcon />}
+                sx={{ fontSize: "0.75rem" }}
+              >
+                Assign
+              </Button>
+            )}
+
+            {pr.analystStatus === PRStatus.UNDER_REVIEW && (
               <>
                 <IconButton
                   size="small"
-                  onClick={() => handleApprovePR(pr.id)}
+                  onClick={() => handleViewPR(pr.id)}
                   color="success"
-                  disabled={approveMutation.isPending}
                 >
                   <ApproveIcon />
                 </IconButton>
-                
+
                 <IconButton
                   size="small"
-                  onClick={() => handleRejectPR(pr.id)}
+                  onClick={() => handleViewPR(pr.id)}
                   color="error"
-                  disabled={rejectMutation.isPending}
                 >
                   <RejectIcon />
                 </IconButton>
               </>
             )}
-            
-            {pr.status === PRStatus.ACTION_REQUIRED && (
+
+            {pr.analystStatus === PRStatus.ACTION_REQUIRED && (
               <IconButton
                 size="small"
-                onClick={() => handleViewPR(pr)}
+                onClick={() => handleViewPR(pr.id)}
                 color="warning"
               >
                 <CommentIcon />
@@ -249,99 +298,70 @@ export const AnalystDashboard: React.FC = () => {
   );
 
   return (
-    <DashboardLayout title="Analyst Dashboard">
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Pricing Requests Review
-        </Typography>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Pricing Analyst Dashboard
+      </Typography>
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="PR status tabs">
-            <Tab label={`Under Review (${filterPRsByStatus(PRStatus.UNDER_REVIEW).length})`} />
-            <Tab label={`Action Required (${filterPRsByStatus(PRStatus.ACTION_REQUIRED).length})`} />
-            <Tab label={`Approved (${filterPRsByStatus(PRStatus.APPROVED).length})`} />
-            <Tab label={`Rejected (${filterPRsByStatus(PRStatus.REJECTED).length})`} />
-          </Tabs>
-        </Box>
-
-        <TabPanel value={tabValue} index={0}>
-          <Grid container spacing={3}>
-            {filterPRsByStatus(PRStatus.UNDER_REVIEW).map(renderPRCard)}
-            {filterPRsByStatus(PRStatus.UNDER_REVIEW).length === 0 && (
-              <Grid item xs={12}>
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                  <Typography variant="h6" color="text.secondary">
-                    No PRs under review
-                  </Typography>
-                </Box>
-              </Grid>
-            )}
-          </Grid>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={1}>
-          <Grid container spacing={3}>
-            {filterPRsByStatus(PRStatus.ACTION_REQUIRED).map(renderPRCard)}
-            {filterPRsByStatus(PRStatus.ACTION_REQUIRED).length === 0 && (
-              <Grid item xs={12}>
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                  <Typography variant="h6" color="text.secondary">
-                    No PRs requiring action
-                  </Typography>
-                </Box>
-              </Grid>
-            )}
-          </Grid>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
-          <Grid container spacing={3}>
-            {filterPRsByStatus(PRStatus.APPROVED).map(renderPRCard)}
-            {filterPRsByStatus(PRStatus.APPROVED).length === 0 && (
-              <Grid item xs={12}>
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                  <Typography variant="h6" color="text.secondary">
-                    No approved PRs
-                  </Typography>
-                </Box>
-              </Grid>
-            )}
-          </Grid>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={3}>
-          <Grid container spacing={3}>
-            {filterPRsByStatus(PRStatus.REJECTED).map(renderPRCard)}
-            {filterPRsByStatus(PRStatus.REJECTED).length === 0 && (
-              <Grid item xs={12}>
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                  <Typography variant="h6" color="text.secondary">
-                    No rejected PRs
-                  </Typography>
-                </Box>
-              </Grid>
-            )}
-          </Grid>
-        </TabPanel>
+      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Tabs value={tabValue} onChange={handleTabChange}>
+          <Tab label="Available PRs" />
+          <Tab label="My Assigned PRs" />
+        </Tabs>
       </Box>
 
-      {/* View PR Dialog */}
-      <Dialog
-        open={isViewDialogOpen}
-        onClose={() => setIsViewDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Review Pricing Request</DialogTitle>
-        <DialogContent>
-          {selectedPR && (
-            <PRViewDialog
-              pr={selectedPR}
-              onClose={() => setIsViewDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </DashboardLayout>
+      <TabPanel value={tabValue} index={0}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Available Pricing Requests
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Click the "Assign" button to take ownership of unassigned pricing
+            requests for review
+          </Typography>
+        </Box>
+
+        <Grid container spacing={3}>
+          {availablePRs?.map((pr) => renderPRCard(pr, true))}
+        </Grid>
+
+        {availablePRs?.length === 0 && (
+          <Box sx={{ textAlign: "center", py: 8 }}>
+            <Typography variant="h6" color="text.secondary">
+              No available pricing requests
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              All pricing requests have been assigned or processed
+            </Typography>
+          </Box>
+        )}
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={1}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            My Assigned Pricing Requests
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Pricing requests assigned to you for review and approval
+          </Typography>
+        </Box>
+
+        <Grid container spacing={3}>
+          {myPRs?.map((pr) => renderPRCard(pr, false))}
+        </Grid>
+
+        {myPRs?.length === 0 && (
+          <Box sx={{ textAlign: "center", py: 8 }}>
+            <Typography variant="h6" color="text.secondary">
+              No assigned pricing requests
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Assign pricing requests from the Available PRs tab to get started
+            </Typography>
+          </Box>
+        )}
+      </TabPanel>
+    </Box>
   );
-}; 
+};

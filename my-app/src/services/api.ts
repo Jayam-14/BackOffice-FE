@@ -1,91 +1,54 @@
-import { API_CONFIG, buildApiUrl } from '../config/api';
+import { API_CONFIG, buildApiUrl } from "../config/api";
 
 export const API_ENDPOINTS = API_CONFIG.ENDPOINTS;
+
+// Get auth token from localStorage
+const getAuthToken = (): string | null => {
+  return localStorage.getItem("authToken");
+};
 
 // Error handling utility
 const handleApiError = async (response: Response) => {
   if (!response.ok) {
-    // Check if response is HTML (likely a 404 page or ngrok warning)
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-      console.error('API returned HTML instead of JSON. This might be the ngrok warning page.');
-      console.error('Response status:', response.status);
-      console.error('Response URL:', response.url);
-      
-      // Check if it's the ngrok warning page
-      const text = await response.text();
-      if (text.includes('ERR_NGROK_6024') || text.includes('ngrok.com')) {
-        throw new Error('NGROK_WARNING: Please accept the ngrok warning page first by visiting the URL directly in your browser.');
-      }
-      
-      throw new Error(`API endpoint not found: ${response.url} (Status: ${response.status})`);
-    }
-    
     try {
       const errorData = await response.json();
       throw new Error(errorData.detail || "API request failed");
     } catch (parseError) {
-      throw new Error(`API request failed with status ${response.status}: ${response.statusText}`);
+      throw new Error(
+        `API request failed with status ${response.status}: ${response.statusText}`
+      );
     }
   }
-  
-  // Check if response is JSON
-  const contentType = response.headers.get('content-type');
-  if (contentType && !contentType.includes('application/json')) {
-    console.warn('API response is not JSON:', contentType);
-  }
-  
+
   return response.json();
 };
 
-// Check if API is available
-const isApiAvailable = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(buildApiUrl('/auth/login'), {
-      method: 'OPTIONS',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.ok;
-  } catch (error) {
-    console.warn('API not available, falling back to mock data:', error);
-    return false;
-  }
-};
-
-// Generic API request function with fallback
+// Generic API request function
 const apiRequest = async (
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> => {
   const url = buildApiUrl(endpoint);
-  console.log('API Request URL:', url);
-  console.log('API Request options:', options);
-  
+  console.log("API Request URL:", url);
+
+  const token = getAuthToken();
   const defaultOptions: RequestInit = {
     ...API_CONFIG.REQUEST_CONFIG,
     headers: {
       ...API_CONFIG.REQUEST_CONFIG.headers,
+      ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
     ...options,
   };
 
   try {
-    console.log('Making API request to:', url);
+    console.log("Making API request to:", url);
     const response = await fetch(url, defaultOptions);
-    console.log('API Response status:', response.status);
-    console.log('API Response headers:', response.headers);
+    console.log("API Response status:", response.status);
     return await handleApiError(response);
   } catch (error) {
-    console.error('API Error:', error);
-    
-    // If it's a CORS error or network error, throw a specific error
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      throw new Error('CORS_ERROR: Unable to connect to the backend API. Please ensure the backend is running and CORS is configured properly.');
-    }
-    
+    console.error("API Error:", error);
     throw error;
   }
 };
@@ -96,27 +59,49 @@ export const authAPI = {
     username: string;
     email: string;
     password: string;
-    role: 'SE' | 'PA';
+    role: "SE" | "PA";
   }) => {
-    return apiRequest(API_ENDPOINTS.AUTH.REGISTER, {
-      method: 'POST',
+    const response = await apiRequest(API_ENDPOINTS.AUTH.REGISTER, {
+      method: "POST",
       body: JSON.stringify(userData),
     });
+
+    // Store the token
+    if (response.access_token) {
+      localStorage.setItem("authToken", response.access_token);
+    }
+
+    return response;
   },
 
-  login: async (credentials: {
-    email: string;
-    password: string;
-  }) => {
-    return apiRequest(API_ENDPOINTS.AUTH.LOGIN, {
-      method: 'POST',
+  login: async (credentials: { email: string; password: string }) => {
+    const response = await apiRequest(API_ENDPOINTS.AUTH.LOGIN, {
+      method: "POST",
       body: JSON.stringify(credentials),
     });
+
+    // Store the token
+    if (response.access_token) {
+      localStorage.setItem("authToken", response.access_token);
+    }
+
+    return response;
   },
 
   logout: async () => {
-    return apiRequest(API_ENDPOINTS.AUTH.LOGOUT, {
-      method: 'POST',
+    try {
+      await apiRequest(API_ENDPOINTS.AUTH.LOGOUT, {
+        method: "POST",
+      });
+    } finally {
+      // Always remove token on logout
+      localStorage.removeItem("authToken");
+    }
+  },
+
+  getProfile: async () => {
+    return apiRequest(API_ENDPOINTS.AUTH.PROFILE, {
+      method: "GET",
     });
   },
 };
@@ -150,14 +135,14 @@ export const salesAPI = {
     }>;
   }) => {
     return apiRequest(API_ENDPOINTS.SALES.SAVE, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(requestData),
     });
   },
 
   submitPricingRequest: async (requestData: any) => {
     return apiRequest(API_ENDPOINTS.SALES.SUBMIT, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(requestData),
     });
   },
@@ -167,32 +152,38 @@ export const salesAPI = {
     if (salesStatus) {
       url += `?sales_status=${encodeURIComponent(salesStatus)}`;
     }
-    return apiRequest(url, { method: 'GET' });
+    return apiRequest(url, { method: "GET" });
   },
 
   getPricingRequestById: async (prId: string) => {
     return apiRequest(API_ENDPOINTS.SALES.GET_BY_ID(prId), {
-      method: 'GET',
+      method: "GET",
     });
   },
 
   updatePricingRequest: async (prId: string, requestData: any) => {
     return apiRequest(API_ENDPOINTS.SALES.UPDATE(prId), {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(requestData),
     });
   },
 
   resubmitActionRequiredRequest: async (prId: string, requestData: any) => {
     return apiRequest(API_ENDPOINTS.SALES.RESUBMIT(prId), {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(requestData),
     });
   },
 
   deletePricingRequest: async (prId: string) => {
     return apiRequest(API_ENDPOINTS.SALES.DELETE(prId), {
-      method: 'DELETE',
+      method: "DELETE",
+    });
+  },
+
+  sendToPA: async (prId: string) => {
+    return apiRequest(API_ENDPOINTS.SALES.SEND_TO_PA(prId), {
+      method: "POST",
     });
   },
 };
@@ -204,7 +195,7 @@ export const paAPI = {
     if (paStatus) {
       url += `?pa_status=${encodeURIComponent(paStatus)}`;
     }
-    return apiRequest(url, { method: 'GET' });
+    return apiRequest(url, { method: "GET" });
   },
 
   getMyAssignedRequests: async (paStatus?: string) => {
@@ -212,22 +203,22 @@ export const paAPI = {
     if (paStatus) {
       url += `?pa_status=${encodeURIComponent(paStatus)}`;
     }
-    return apiRequest(url, { method: 'GET' });
+    return apiRequest(url, { method: "GET" });
   },
 
   assignPricingRequest: async (prId: string) => {
     return apiRequest(API_ENDPOINTS.PA.ASSIGN(prId), {
-      method: 'POST',
+      method: "POST",
     });
   },
 
   approveRejectPricingRequest: async (
     prId: string,
-    action: 'approve' | 'reject' | 'action_required',
-    comment: string = ''
+    action: "approve" | "reject" | "action_required",
+    comment: string = ""
   ) => {
     return apiRequest(API_ENDPOINTS.PA.APPROVE_REJECT(prId), {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         action,
         comment,
@@ -237,7 +228,7 @@ export const paAPI = {
 
   getPricingRequestById: async (prId: string) => {
     return apiRequest(API_ENDPOINTS.PA.GET_BY_ID(prId), {
-      method: 'GET',
+      method: "GET",
     });
   },
 };
@@ -246,70 +237,77 @@ export const paAPI = {
 export const transformPRData = {
   // Transform frontend PR data to API format
   toAPI: (prData: any) => ({
-    shipment_date: prData.shipmentDate instanceof Date ? prData.shipmentDate.toISOString().split('T')[0] : prData.shipmentDate,
+    shipment_date:
+      prData.shipmentDate instanceof Date
+        ? prData.shipmentDate.toISOString().split("T")[0]
+        : prData.shipmentDate,
     account_info: prData.accountInfo,
     discount: prData.discount,
-    origin_address: prData.startingAddress,
-    origin_state: prData.startingState,
-    origin_zip: prData.startingZip,
-    origin_country: prData.startingCountry,
-    dest_address: prData.destinationAddress,
-    dest_state: prData.destinationState,
-    dest_zip: prData.destinationZip,
-    dest_country: prData.destinationCountry,
-    accessorial: prData.accessorial || '',
-    pickup: prData.pickup || '',
-    delivery: prData.delivery || '',
-    daylight_protect: prData.daylightProtectCoverage,
+    origin_address: prData.originAddress,
+    origin_state: prData.originState,
+    origin_zip: prData.originZip,
+    origin_country: prData.originCountry,
+    dest_address: prData.destAddress,
+    dest_state: prData.destState,
+    dest_zip: prData.destZip,
+    dest_country: prData.destCountry,
+    accessorial: prData.accessorial,
+    pickup: prData.pickup,
+    delivery: prData.delivery,
+    daylight_protect: prData.daylightProtect,
     items: prData.items.map((item: any) => ({
       item_name: item.itemName,
       commodity_class: item.commodityClass,
       total_weight: item.totalWeight,
-      handling_unit: item.handlingUnits,
-      no_of_pieces: item.numberOfPieces,
-      container_type: item.containerTypes,
-      no_of_pallets: item.numberOfPallets,
+      handling_unit: item.handlingUnit,
+      no_of_pieces: item.noOfPieces,
+      container_type: item.containerType,
+      no_of_pallets: item.noOfPallets,
     })),
   }),
 
   // Transform API PR data to frontend format
   fromAPI: (apiData: any) => ({
-    id: apiData.id,
-    shipmentDate: apiData.shipment_date,
-    accountInfo: apiData.account_info,
-    discount: apiData.discount,
-    startingAddress: apiData.origin_address,
-    startingState: apiData.origin_state,
-    startingZip: apiData.origin_zip,
-    startingCountry: apiData.origin_country,
-    destinationAddress: apiData.dest_address,
-    destinationState: apiData.dest_state,
-    destinationZip: apiData.dest_zip,
-    destinationCountry: apiData.dest_country,
-    accessorial: apiData.accessorial || '',
-    pickup: apiData.pickup || '',
-    delivery: apiData.delivery || '',
-    daylightProtectCoverage: apiData.daylight_protect,
-    status: apiData.sales_status,
-    analystStatus: apiData.analyst_status,
-    createdBy: apiData.created_by,
-    assignedTo: apiData.assigned_to,
-    submissionDate: apiData.submission_date,
-    lastUpdated: apiData.last_updated,
-    items: apiData.items?.map((item: any) => ({
-      id: item.id,
-      itemName: item.item_name,
-      commodityClass: item.commodity_class,
-      totalWeight: item.total_weight,
-      handlingUnits: item.handling_unit,
-      numberOfPieces: item.no_of_pieces,
-      containerTypes: item.container_type,
-      numberOfPallets: item.no_of_pallets,
-    })) || [],
-    comments: apiData.comments?.map((comment: any) => ({
-      id: comment.id,
-      commentText: comment.comment_text,
-      createdAt: comment.created_at,
-    })) || [],
+    id: apiData.id || apiData.pr_id, // Handle both summary and detailed formats
+    shipmentDate: apiData.shipment_date
+      ? new Date(apiData.shipment_date)
+      : new Date(),
+    accountInfo: apiData.account_info || "N/A",
+    discount: apiData.discount || "",
+    originAddress: apiData.origin_address || "",
+    originState: apiData.origin_state || "",
+    originZip: apiData.origin_zip || "",
+    originCountry: apiData.origin_country || "USA",
+    destAddress: apiData.dest_address || "",
+    destState: apiData.destination_state || apiData.dest_state || "", // Handle destination_state field
+    destZip: apiData.dest_zip || "",
+    destCountry: apiData.dest_country || "USA",
+    accessorial: apiData.accessorial || "",
+    pickup: apiData.pickup || "",
+    delivery: apiData.delivery || "",
+    daylightProtect: apiData.daylight_protect || false,
+    salesStatus: apiData.sales_status || "Draft",
+    analystStatus: apiData.analyst_status || null,
+    createdBy: apiData.created_by || "",
+    assignedTo: apiData.assigned_to || apiData.assigned || null,
+    submissionDate: apiData.submission_date || "",
+    lastUpdated: apiData.last_updated || "",
+    items:
+      apiData.items?.map((item: any) => ({
+        id: item.id,
+        itemName: item.item_name,
+        commodityClass: item.commodity_class,
+        totalWeight: item.total_weight,
+        handlingUnit: item.handling_unit,
+        noOfPieces: item.no_of_pieces,
+        containerType: item.container_type,
+        noOfPallets: item.no_of_pallets,
+      })) || [],
+    comments:
+      apiData.comments?.map((comment: any) => ({
+        id: comment.id,
+        commentText: comment.comment_text,
+        createdAt: comment.created_at,
+      })) || [],
   }),
-}; 
+};

@@ -1,27 +1,32 @@
-import React from 'react';
+import React from "react";
 import {
-  AppBar,
   Box,
+  AppBar,
   Toolbar,
   Typography,
   Button,
-  Container,
   IconButton,
+  Avatar,
   Menu,
   MenuItem,
-  Avatar
-} from '@mui/material';
-import { AccountCircle, Logout } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
-import { UserRole } from '../types';
+  Divider,
+} from "@mui/material";
+import {
+  Logout as LogoutIcon,
+  Person as PersonIcon,
+} from "@mui/icons-material";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
-  title: string;
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) => {
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  children,
+}) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -32,28 +37,30 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     handleClose();
   };
 
-  const getRoleDisplayName = (role: string) => {
-    return role === UserRole.SALES_EXECUTIVE ? 'Sales Executive' : 'Pricing Analyst';
+  const handleProfile = () => {
+    // Navigate to profile or show profile info
+    handleClose();
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <AppBar position="static" sx={{ backgroundColor: '#1976d2' }}>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {title}
+            Backoffice Management System
           </Typography>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="body2" sx={{ color: 'white' }}>
-              {user?.name} ({getRoleDisplayName(user?.role || '')})
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Typography variant="body2">
+              {user?.name} (
+              {user?.role === "SE" ? "Sales Executive" : "Pricing Analyst"})
             </Typography>
-            
+
             <IconButton
               size="large"
               aria-label="account of current user"
@@ -62,36 +69,43 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
               onClick={handleMenu}
               color="inherit"
             >
-              <AccountCircle />
+              <Avatar sx={{ width: 32, height: 32 }}>
+                <PersonIcon />
+              </Avatar>
             </IconButton>
-            
+
             <Menu
               id="menu-appbar"
               anchorEl={anchorEl}
               anchorOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
+                vertical: "bottom",
+                horizontal: "right",
               }}
               keepMounted
               transformOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
+                vertical: "top",
+                horizontal: "right",
               }}
               open={Boolean(anchorEl)}
               onClose={handleClose}
             >
+              <MenuItem onClick={handleProfile}>
+                <PersonIcon sx={{ mr: 1 }} />
+                Profile
+              </MenuItem>
+              <Divider />
               <MenuItem onClick={handleLogout}>
-                <Logout sx={{ mr: 1 }} />
+                <LogoutIcon sx={{ mr: 1 }} />
                 Logout
               </MenuItem>
             </Menu>
           </Box>
         </Toolbar>
       </AppBar>
-      
-      <Container maxWidth="xl" sx={{ flexGrow: 1, py: 3 }}>
+
+      <Box component="main" sx={{ flexGrow: 1 }}>
         {children}
-      </Container>
+      </Box>
     </Box>
   );
-}; 
+};
