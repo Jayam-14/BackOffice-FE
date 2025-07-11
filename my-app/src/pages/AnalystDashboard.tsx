@@ -26,9 +26,10 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { DashboardLayout } from '../component/DashboardLayout';
-import { mockAPI } from '../services/mockData';
+import { paPRService } from '../services/prService';
 import { useAuth } from '../contexts/AuthContext';
 import { PRStatus, UserRole } from '../types';
+import type { PR } from '../types';
 import { PRViewDialog } from '../component/PRViewDialog';
 
 const getStatusColor = (status: string) => {
@@ -94,21 +95,34 @@ export const AnalystDashboard: React.FC = () => {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
 
+  console.log('AnalystDashboard - User:', user);
+  console.log('AnalystDashboard - User role:', user?.role);
+
   const { data: prs, isLoading, error } = useQuery({
-    queryKey: ['prs', user?.id, user?.role],
-    queryFn: () => mockAPI.getPRs(user?.id || '', user?.role || UserRole.PRICING_ANALYST),
+    queryKey: ['pa-prs', user?.id, user?.role],
+    queryFn: async () => {
+      console.log('AnalystDashboard - Fetching PA PRs...');
+      try {
+        const result = await paPRService.getAvailablePRs();
+        console.log('AnalystDashboard - PA PRs fetched successfully:', result);
+        return result;
+      } catch (err) {
+        console.error('AnalystDashboard - Error fetching PA PRs:', err);
+        throw err;
+      }
+    },
     enabled: !!user
   });
 
   const approveMutation = useMutation({
-    mutationFn: (prId: string) => mockAPI.approvePR(prId),
+    mutationFn: (prId: string) => paPRService.approvePR(prId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prs'] });
     }
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (prId: string) => mockAPI.rejectPR(prId),
+    mutationFn: (prId: string) => paPRService.rejectPR(prId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prs'] });
     }
@@ -157,7 +171,7 @@ export const AnalystDashboard: React.FC = () => {
     );
   }
 
-  const renderPRCard = (pr: any) => (
+  const renderPRCard = (pr: PR) => (
     <Grid item xs={12} md={6} lg={4} key={pr.id}>
       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <CardContent sx={{ flexGrow: 1 }}>

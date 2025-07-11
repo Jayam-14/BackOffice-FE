@@ -9,16 +9,20 @@ export const NavigationHelper: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Only navigate if we're on the root path and have a user
-    if (location.pathname === '/' && user) {
-      // Navigate based on user role
+    console.log('NavigationHelper - user:', user, 'pathname:', location.pathname);
+    
+    // If we have a user and we're not already on a dashboard page, navigate to appropriate dashboard
+    if (user && !location.pathname.startsWith('/sales') && !location.pathname.startsWith('/analyst') && !location.pathname.startsWith('/pr/')) {
       if (user.role === UserRole.SALES_EXECUTIVE) {
+        console.log('NavigationHelper - navigating to /sales');
         navigate('/sales');
       } else if (user.role === UserRole.PRICING_ANALYST) {
+        console.log('NavigationHelper - navigating to /analyst');
         navigate('/analyst');
       }
-    } else if (!user && location.pathname !== '/auth') {
+    } else if (!user && location.pathname !== '/auth' && location.pathname !== '/test') {
       // If no user and not on auth page, navigate to auth page
+      console.log('NavigationHelper - no user, navigating to /auth');
       navigate('/auth');
     }
   }, [user, navigate, location.pathname]);
