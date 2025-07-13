@@ -147,17 +147,24 @@ export const PRDetailsPage: React.FC = () => {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case PRStatus.DRAFT:
+    const normalizedStatus = status?.toLowerCase();
+    switch (normalizedStatus) {
+      case PRStatus.DRAFT.toLowerCase():
         return "default";
-      case PRStatus.UNDER_REVIEW:
+      case PRStatus.UNDER_REVIEW.toLowerCase():
         return "warning";
-      case PRStatus.ACTION_REQUIRED:
+      case PRStatus.ACTION_REQUIRED.toLowerCase():
         return "error";
-      case PRStatus.APPROVED:
+      case PRStatus.APPROVED.toLowerCase():
         return "success";
-      case PRStatus.REJECTED:
+      case PRStatus.REJECTED.toLowerCase():
         return "error";
+      case PRStatus.ACTIVE_STATUS.toLowerCase():
+      case "active status":
+        return "info";
+      case PRStatus.CLOSED.toLowerCase():
+      case "closed":
+        return "default";
       default:
         return "default";
     }
@@ -237,13 +244,14 @@ export const PRDetailsPage: React.FC = () => {
         }}
       >
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <Chip
-            label={`Sales: ${pr.salesStatus}`}
-            color={getStatusColor(pr.salesStatus) as any}
-          />
-          {pr.analystStatus && (
+          {user?.role === UserRole.SALES_EXECUTIVE ? (
             <Chip
-              label={`Analyst: ${pr.analystStatus}`}
+              label={`Sales: ${pr.salesStatus}`}
+              color={getStatusColor(pr.salesStatus) as any}
+            />
+          ) : (
+            <Chip
+              label={`Analyst: ${pr.analystStatus || "Not Assigned"}`}
               color={getStatusColor(pr.analystStatus) as any}
             />
           )}
@@ -259,7 +267,9 @@ export const PRDetailsPage: React.FC = () => {
         <Box sx={{ display: "flex", gap: 1 }}>
           {user?.role === UserRole.SALES_EXECUTIVE && (
             <>
-              {pr.salesStatus === PRStatus.DRAFT && (
+              {(pr.salesStatus?.toLowerCase() ===
+                PRStatus.DRAFT.toLowerCase() ||
+                pr.salesStatus?.toLowerCase() === "draft") && (
                 <>
                   <Button
                     startIcon={<EditIcon />}
@@ -287,7 +297,9 @@ export const PRDetailsPage: React.FC = () => {
                   </Button>
                 </>
               )}
-              {pr.salesStatus === PRStatus.ACTION_REQUIRED && (
+              {(pr.salesStatus?.toLowerCase() ===
+                PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                pr.salesStatus?.toLowerCase() === "action required") && (
                 <>
                   <Button
                     startIcon={<EditIcon />}
@@ -311,8 +323,9 @@ export const PRDetailsPage: React.FC = () => {
 
           {user?.role === UserRole.PRICING_ANALYST &&
             pr.assignedTo &&
-            (pr.analystStatus === PRStatus.UNDER_REVIEW ||
-              pr.analystStatus === PRStatus.ACTIVE_STATUS) && (
+            (pr.analystStatus?.toLowerCase() ===
+              PRStatus.ACTIVE_STATUS.toLowerCase() ||
+              pr.analystStatus?.toLowerCase() === "active status") && (
               <>
                 <Button
                   startIcon={<ApproveIcon />}
@@ -603,7 +616,15 @@ export const PRDetailsPage: React.FC = () => {
         fullWidth
       >
         <DialogTitle>
-          {pr.salesStatus === PRStatus.ACTION_REQUIRED
+          {user?.role === UserRole.SALES_EXECUTIVE
+            ? pr.salesStatus?.toLowerCase() ===
+                PRStatus.ACTION_REQUIRED.toLowerCase() ||
+              pr.salesStatus?.toLowerCase() === "action required"
+              ? "Resubmit PR"
+              : "Edit PR"
+            : pr.analystStatus?.toLowerCase() ===
+                PRStatus.ACTION_REQUIRED.toLowerCase() ||
+              pr.analystStatus?.toLowerCase() === "action required"
             ? "Resubmit PR"
             : "Edit PR"}
         </DialogTitle>
@@ -611,16 +632,40 @@ export const PRDetailsPage: React.FC = () => {
           <PRForm
             initialData={pr}
             onSubmit={(data) => {
-              if (pr.salesStatus === PRStatus.ACTION_REQUIRED) {
-                resubmitMutation.mutate(data);
+              if (user?.role === UserRole.SALES_EXECUTIVE) {
+                if (
+                  pr.salesStatus?.toLowerCase() ===
+                    PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                  pr.salesStatus?.toLowerCase() === "action required"
+                ) {
+                  resubmitMutation.mutate(data);
+                } else {
+                  updateMutation.mutate(data);
+                }
               } else {
-                updateMutation.mutate(data);
+                if (
+                  pr.analystStatus?.toLowerCase() ===
+                    PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                  pr.analystStatus?.toLowerCase() === "action required"
+                ) {
+                  resubmitMutation.mutate(data);
+                } else {
+                  updateMutation.mutate(data);
+                }
               }
             }}
             onCancel={() => setIsEditDialogOpen(false)}
             isLoading={updateMutation.isPending || resubmitMutation.isPending}
             submitLabel={
-              pr.salesStatus === PRStatus.ACTION_REQUIRED
+              user?.role === UserRole.SALES_EXECUTIVE
+                ? pr.salesStatus?.toLowerCase() ===
+                    PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                  pr.salesStatus?.toLowerCase() === "action required"
+                  ? "Resubmit"
+                  : "Update"
+                : pr.analystStatus?.toLowerCase() ===
+                    PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                  pr.analystStatus?.toLowerCase() === "action required"
                 ? "Resubmit"
                 : "Update"
             }

@@ -267,47 +267,58 @@ export const transformPRData = {
   }),
 
   // Transform API PR data to frontend format
-  fromAPI: (apiData: any) => ({
-    id: apiData.id || apiData.pr_id, // Handle both summary and detailed formats
-    shipmentDate: apiData.shipment_date
-      ? new Date(apiData.shipment_date)
-      : new Date(),
-    accountInfo: apiData.account_info || "N/A",
-    discount: apiData.discount || "",
-    originAddress: apiData.origin_address || "",
-    originState: apiData.origin_state || "",
-    originZip: apiData.origin_zip || "",
-    originCountry: apiData.origin_country || "USA",
-    destAddress: apiData.dest_address || "",
-    destState: apiData.destination_state || apiData.dest_state || "", // Handle destination_state field
-    destZip: apiData.dest_zip || "",
-    destCountry: apiData.dest_country || "USA",
-    accessorial: apiData.accessorial || "",
-    pickup: apiData.pickup || "",
-    delivery: apiData.delivery || "",
-    daylightProtect: apiData.daylight_protect || false,
-    salesStatus: apiData.sales_status || "Draft",
-    analystStatus: apiData.analyst_status || null,
-    createdBy: apiData.created_by || "",
-    assignedTo: apiData.assigned_to || apiData.assigned || null,
-    submissionDate: apiData.submission_date || "",
-    lastUpdated: apiData.last_updated || "",
-    items:
-      apiData.items?.map((item: any) => ({
-        id: item.id,
-        itemName: item.item_name,
-        commodityClass: item.commodity_class,
-        totalWeight: item.total_weight,
-        handlingUnit: item.handling_unit,
-        noOfPieces: item.no_of_pieces,
-        containerType: item.container_type,
-        noOfPallets: item.no_of_pallets,
-      })) || [],
-    comments:
-      apiData.comments?.map((comment: any) => ({
-        id: comment.id,
-        commentText: comment.comment_text,
-        createdAt: comment.created_at,
-      })) || [],
-  }),
+  fromAPI: (apiData: any) => {
+    console.log("API Data received:", apiData);
+    console.log("Status fields:", {
+      sales_status: apiData.sales_status,
+      analyst_status: apiData.analyst_status,
+      status: apiData.status,
+    });
+
+    return {
+      id: apiData.id || apiData.pr_id, // Handle both summary and detailed formats
+      shipmentDate: apiData.shipment_date
+        ? new Date(apiData.shipment_date)
+        : new Date(),
+      accountInfo:
+        apiData.account_info ||
+        `PR-${apiData.pr_id?.slice(-8) || apiData.id?.slice(-8) || "Unknown"}`, // Use PR ID as fallback
+      discount: apiData.discount || "",
+      originAddress: apiData.origin_address || "",
+      originState: apiData.origin_state || "",
+      originZip: apiData.origin_zip || "",
+      originCountry: apiData.origin_country || "USA",
+      destAddress: apiData.dest_address || "",
+      destState: apiData.destination_state || apiData.dest_state || "", // Handle destination_state field
+      destZip: apiData.dest_zip || "",
+      destCountry: apiData.dest_country || "USA",
+      accessorial: apiData.accessorial || "",
+      pickup: apiData.pickup || "",
+      delivery: apiData.delivery || "",
+      daylightProtect: apiData.daylight_protect || false,
+      salesStatus: apiData.sales_status || apiData.status || "Draft",
+      analystStatus: apiData.analyst_status || apiData.status || null,
+      createdBy: apiData.created_by || "",
+      assignedTo: apiData.assigned_to || apiData.assigned || null,
+      submissionDate: apiData.submission_date || "",
+      lastUpdated: apiData.last_updated || "",
+      items:
+        apiData.items?.map((item: any) => ({
+          id: item.id,
+          itemName: item.item_name,
+          commodityClass: item.commodity_class,
+          totalWeight: item.total_weight,
+          handlingUnit: item.handling_unit,
+          noOfPieces: item.no_of_pieces,
+          containerType: item.container_type,
+          noOfPallets: item.no_of_pallets,
+        })) || [],
+      comments:
+        apiData.comments?.map((comment: any) => ({
+          id: comment.id,
+          commentText: comment.comment_text,
+          createdAt: comment.created_at,
+        })) || [],
+    };
+  },
 };
