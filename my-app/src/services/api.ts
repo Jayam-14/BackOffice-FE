@@ -11,13 +11,43 @@ const getAuthToken = (): string | null => {
 const handleApiError = async (response: Response) => {
   if (!response.ok) {
     try {
+      const contentType = response.headers.get("content-type");
+
+      // Check if response is HTML (error page)
+      if (contentType && contentType.includes("text/html")) {
+        const htmlText = await response.text();
+        console.error(
+          "Received HTML response instead of JSON:",
+          htmlText.substring(0, 200)
+        );
+        throw new Error(
+          `API returned HTML instead of JSON. This might be an ngrok warning page or server error. Status: ${response.status}`
+        );
+      }
+
+      // Try to parse as JSON
       const errorData = await response.json();
-      throw new Error(errorData.detail || "API request failed");
+      throw new Error(
+        errorData.detail || `API request failed with status ${response.status}`
+      );
     } catch (parseError) {
+      if (parseError instanceof Error && parseError.message.includes("HTML")) {
+        throw parseError;
+      }
       throw new Error(
         `API request failed with status ${response.status}: ${response.statusText}`
       );
     }
+  }
+
+  // Check if response is JSON
+  const contentType = response.headers.get("content-type");
+  if (contentType && !contentType.includes("application/json")) {
+    const text = await response.text();
+    console.error("Received non-JSON response:", text.substring(0, 200));
+    throw new Error(
+      `API returned non-JSON response. Content-Type: ${contentType}`
+    );
   }
 
   return response.json();
@@ -30,6 +60,7 @@ const apiRequest = async (
 ): Promise<any> => {
   const url = buildApiUrl(endpoint);
   console.log("API Request URL:", url);
+  console.log("API Request options:", options);
 
   const token = getAuthToken();
   const defaultOptions: RequestInit = {
@@ -44,8 +75,15 @@ const apiRequest = async (
 
   try {
     console.log("Making API request to:", url);
+    console.log("Request headers:", defaultOptions.headers);
+
     const response = await fetch(url, defaultOptions);
     console.log("API Response status:", response.status);
+    console.log(
+      "API Response headers:",
+      Object.fromEntries(response.headers.entries())
+    );
+
     return await handleApiError(response);
   } catch (error) {
     console.error("API Error:", error);

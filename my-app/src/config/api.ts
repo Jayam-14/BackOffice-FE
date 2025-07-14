@@ -1,9 +1,11 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: "http://localhost:8080",
+  BASE_URL: "https://b3072eec7eb0.ngrok-free.app",
   REQUEST_CONFIG: {
     headers: {
       "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+      "User-Agent": "Backoffice-FE/1.0.0",
     },
   },
   ENDPOINTS: {
