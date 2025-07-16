@@ -20,10 +20,10 @@ export const NavigationHelper: React.FC = () => {
         console.log('NavigationHelper - navigating to /analyst');
         navigate('/analyst');
       }
-    } else if (!user && location.pathname !== '/login' && location.pathname !== '/signup' && location.pathname !== '/test') {
-      // If no user and not on login or signup page, navigate to login page
-      console.log('NavigationHelper - no user, navigating to /login');
-      navigate('/login');
+    } else if (!user && location.pathname !== '/auth' && location.pathname !== '/test') {
+      // If no user and not on auth page, navigate to auth page
+      console.log('NavigationHelper - no user, navigating to /auth');
+      navigate('/auth');
     }
   }, [user, navigate, location.pathname]);
 
