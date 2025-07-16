@@ -109,7 +109,39 @@ export const PRDetailsPage: React.FC = () => {
 
   const resubmitMutation = useMutation({
     mutationFn: (data: any) => salesPRService.resubmitPR(prId, data),
-    onSuccess: () => {
+    onMutate: async (data) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["pr-details", prId] });
+      await queryClient.cancelQueries({ queryKey: ["sales-prs"] });
+
+      // Snapshot the previous value
+      const previousPR = queryClient.getQueryData(["pr-details", prId]);
+      const previousPRs = queryClient.getQueryData(["sales-prs"]);
+
+      // Optimistically update to the new value
+      if (previousPR) {
+        queryClient.setQueryData(["pr-details", prId], {
+          ...previousPR,
+          salesStatus: "Active Status",
+          analystStatus: "Active Status",
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousPR, previousPRs };
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousPR) {
+        queryClient.setQueryData(["pr-details", prId], context.previousPR);
+      }
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["sales-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
       queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
       setIsEditDialogOpen(false);
@@ -118,7 +150,32 @@ export const PRDetailsPage: React.FC = () => {
 
   const approveMutation = useMutation({
     mutationFn: () => paPRService.approvePR(prId, comment),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["pr-details", prId] });
+      await queryClient.cancelQueries({ queryKey: ["pa-prs"] });
+
+      const previousPR = queryClient.getQueryData(["pr-details", prId]);
+      const previousPRs = queryClient.getQueryData(["pa-prs"]);
+
+      if (previousPR) {
+        queryClient.setQueryData(["pr-details", prId], {
+          ...previousPR,
+          analystStatus: "Approved",
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+
+      return { previousPR, previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPR) {
+        queryClient.setQueryData(["pr-details", prId], context.previousPR);
+      }
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["pa-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
       queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
       setIsActionDialogOpen(false);
@@ -128,7 +185,32 @@ export const PRDetailsPage: React.FC = () => {
 
   const rejectMutation = useMutation({
     mutationFn: () => paPRService.rejectPR(prId, comment),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["pr-details", prId] });
+      await queryClient.cancelQueries({ queryKey: ["pa-prs"] });
+
+      const previousPR = queryClient.getQueryData(["pr-details", prId]);
+      const previousPRs = queryClient.getQueryData(["pa-prs"]);
+
+      if (previousPR) {
+        queryClient.setQueryData(["pr-details", prId], {
+          ...previousPR,
+          analystStatus: "Rejected",
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+
+      return { previousPR, previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPR) {
+        queryClient.setQueryData(["pr-details", prId], context.previousPR);
+      }
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["pa-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
       queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
       setIsActionDialogOpen(false);
@@ -138,7 +220,32 @@ export const PRDetailsPage: React.FC = () => {
 
   const actionRequiredMutation = useMutation({
     mutationFn: () => paPRService.requestActionRequired(prId, comment),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["pr-details", prId] });
+      await queryClient.cancelQueries({ queryKey: ["pa-prs"] });
+
+      const previousPR = queryClient.getQueryData(["pr-details", prId]);
+      const previousPRs = queryClient.getQueryData(["pa-prs"]);
+
+      if (previousPR) {
+        queryClient.setQueryData(["pr-details", prId], {
+          ...previousPR,
+          analystStatus: "Action Required",
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+
+      return { previousPR, previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPR) {
+        queryClient.setQueryData(["pr-details", prId], context.previousPR);
+      }
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["pa-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pr-details", prId] });
       queryClient.invalidateQueries({ queryKey: ["pa-prs"] });
       setIsActionDialogOpen(false);
@@ -146,7 +253,7 @@ export const PRDetailsPage: React.FC = () => {
     },
   });
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, pr?: PR) => {
     const normalizedStatus = status?.toLowerCase();
     switch (normalizedStatus) {
       case PRStatus.DRAFT.toLowerCase():
@@ -164,6 +271,30 @@ export const PRDetailsPage: React.FC = () => {
         return "info";
       case PRStatus.CLOSED.toLowerCase():
       case "closed":
+        // For closed status, check if it was approved or rejected
+        if (pr) {
+          // First check the finalApprovalStatus field
+          if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+            return "success"; // Green for approved closed PRs
+          } else if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+            return "error"; // Red for rejected closed PRs
+          }
+          // Fallback: Check if the analyst status shows it was approved or rejected
+          if (pr.analystStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+            return "success"; // Green for approved closed PRs
+          } else if (pr.analystStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+            return "error"; // Red for rejected closed PRs
+          }
+          // Last resort: Check comments for approval/rejection indicators
+          if (pr.comments && pr.comments.length > 0) {
+            const lastComment = pr.comments[pr.comments.length - 1];
+            if (lastComment.commentText?.toLowerCase().includes('approved')) {
+              return "success"; // Green for approved closed PRs
+            } else if (lastComment.commentText?.toLowerCase().includes('rejected')) {
+              return "error"; // Red for rejected closed PRs
+            }
+          }
+        }
         return "default";
       default:
         return "default";
@@ -247,12 +378,12 @@ export const PRDetailsPage: React.FC = () => {
           {user?.role === UserRole.SALES_EXECUTIVE ? (
             <Chip
               label={`Sales: ${pr.salesStatus}`}
-              color={getStatusColor(pr.salesStatus) as any}
+              color={getStatusColor(pr.salesStatus, pr) as any}
             />
           ) : (
             <Chip
               label={`Analyst: ${pr.analystStatus || "Not Assigned"}`}
-              color={getStatusColor(pr.analystStatus) as any}
+              color={getStatusColor(pr.analystStatus, pr) as any}
             />
           )}
           {pr.assignedTo && (
@@ -323,6 +454,7 @@ export const PRDetailsPage: React.FC = () => {
 
           {user?.role === UserRole.PRICING_ANALYST &&
             pr.assignedTo &&
+            pr.assignedTo === user.id &&
             (pr.analystStatus?.toLowerCase() ===
               PRStatus.ACTIVE_STATUS.toLowerCase() ||
               pr.analystStatus?.toLowerCase() === "active status") && (
@@ -352,6 +484,18 @@ export const PRDetailsPage: React.FC = () => {
                   Request Action
                 </Button>
               </>
+            )}
+
+          {/* Show assigned user info if assigned to someone else */}
+          {user?.role === UserRole.PRICING_ANALYST &&
+            pr.assignedTo &&
+            pr.assignedTo !== user.id && (
+              <Chip
+                label={`Assigned to: ${pr.assignedTo}`}
+                color="info"
+                variant="outlined"
+                sx={{ fontSize: "0.875rem" }}
+              />
             )}
         </Box>
       </Box>

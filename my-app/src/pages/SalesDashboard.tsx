@@ -54,7 +54,7 @@ const safeFormatDate = (date: any, formatString: string): string => {
   }
 };
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string, pr?: PR) => {
   const normalizedStatus = status?.toLowerCase();
   switch (normalizedStatus) {
     case PRStatus.DRAFT.toLowerCase():
@@ -67,8 +67,35 @@ const getStatusColor = (status: string) => {
       return "success";
     case PRStatus.REJECTED.toLowerCase():
       return "error";
+    case PRStatus.ACTIVE_STATUS.toLowerCase():
+    case "active status":
+      return "info";
     case PRStatus.CLOSED.toLowerCase():
     case "closed":
+      // For closed status, check if it was approved or rejected
+      if (pr) {
+        // First check the finalApprovalStatus field
+        if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+          return "success"; // Green for approved closed PRs
+        } else if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+          return "error"; // Red for rejected closed PRs
+        }
+        // Fallback: Check if the analyst status shows it was approved or rejected
+        if (pr.analystStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+          return "success"; // Green for approved closed PRs
+        } else if (pr.analystStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+          return "error"; // Red for rejected closed PRs
+        }
+        // Last resort: Check comments for approval/rejection indicators
+        if (pr.comments && pr.comments.length > 0) {
+          const lastComment = pr.comments[pr.comments.length - 1];
+          if (lastComment.commentText?.toLowerCase().includes('approved')) {
+            return "success"; // Green for approved closed PRs
+          } else if (lastComment.commentText?.toLowerCase().includes('rejected')) {
+            return "error"; // Red for rejected closed PRs
+          }
+        }
+      }
       return "default";
     default:
       return "default";
@@ -149,11 +176,35 @@ export const SalesDashboard: React.FC = () => {
       }
     },
     enabled: !!user,
+    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchIntervalInBackground: true, // Continue refetching even when tab is not active
   });
 
   const createMutation = useMutation({
     mutationFn: (data: PRCreateData) => salesPRService.createPR(data),
-    onSuccess: () => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ["sales-prs"] });
+      const previousPRs = queryClient.getQueryData(["sales-prs"]);
+      
+      // Optimistically add the new PR
+      if (previousPRs) {
+        const newPR = {
+          id: `temp-${Date.now()}`,
+          ...data,
+          salesStatus: "Draft",
+          createdAt: new Date().toISOString(),
+        };
+        queryClient.setQueryData(["sales-prs"], [...previousPRs, newPR]);
+      }
+      
+      return { previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["sales-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
       setIsCreateDialogOpen(false);
     },
@@ -161,7 +212,29 @@ export const SalesDashboard: React.FC = () => {
 
   const submitMutation = useMutation({
     mutationFn: (data: PRCreateData) => salesPRService.submitPR(data),
-    onSuccess: () => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ["sales-prs"] });
+      const previousPRs = queryClient.getQueryData(["sales-prs"]);
+      
+      // Optimistically add the new PR
+      if (previousPRs) {
+        const newPR = {
+          id: `temp-${Date.now()}`,
+          ...data,
+          salesStatus: "Under Review",
+          createdAt: new Date().toISOString(),
+        };
+        queryClient.setQueryData(["sales-prs"], [...previousPRs, newPR]);
+      }
+      
+      return { previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["sales-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
       setIsCreateDialogOpen(false);
     },
@@ -169,7 +242,25 @@ export const SalesDashboard: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (prId: string) => salesPRService.deletePR(prId),
-    onSuccess: () => {
+    onMutate: async (prId) => {
+      await queryClient.cancelQueries({ queryKey: ["sales-prs"] });
+      const previousPRs = queryClient.getQueryData(["sales-prs"]);
+      
+      // Optimistically remove the PR
+      if (previousPRs) {
+        queryClient.setQueryData(["sales-prs"], 
+          previousPRs.filter((pr: PR) => pr.id !== prId)
+        );
+      }
+      
+      return { previousPRs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPRs) {
+        queryClient.setQueryData(["sales-prs"], context.previousPRs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-prs"] });
     },
   });
@@ -284,7 +375,7 @@ export const SalesDashboard: React.FC = () => {
               </Typography>
               <Chip
                 label={getStatusLabel(pr.salesStatus)}
-                color={getStatusColor(pr.salesStatus) as any}
+                color={getStatusColor(pr.salesStatus, pr) as any}
                 size="small"
                 sx={{ fontWeight: 600 }}
               />

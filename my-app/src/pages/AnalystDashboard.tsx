@@ -51,7 +51,7 @@ const safeFormatDate = (date: any, formatString: string): string => {
   }
 };
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string, pr?: PR) => {
   const normalizedStatus = status?.toLowerCase();
   switch (normalizedStatus) {
     case PRStatus.DRAFT.toLowerCase():
@@ -69,6 +69,30 @@ const getStatusColor = (status: string) => {
       return "info";
     case PRStatus.CLOSED.toLowerCase():
     case "closed":
+      // For closed status, check if it was approved or rejected
+      if (pr) {
+        // First check the finalApprovalStatus field
+        if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+          return "success"; // Green for approved closed PRs
+        } else if (pr.finalApprovalStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+          return "error"; // Red for rejected closed PRs
+        }
+        // Fallback: Check if the analyst status shows it was approved or rejected
+        if (pr.analystStatus?.toLowerCase() === PRStatus.APPROVED.toLowerCase()) {
+          return "success"; // Green for approved closed PRs
+        } else if (pr.analystStatus?.toLowerCase() === PRStatus.REJECTED.toLowerCase()) {
+          return "error"; // Red for rejected closed PRs
+        }
+        // Last resort: Check comments for approval/rejection indicators
+        if (pr.comments && pr.comments.length > 0) {
+          const lastComment = pr.comments[pr.comments.length - 1];
+          if (lastComment.commentText?.toLowerCase().includes('approved')) {
+            return "success"; // Green for approved closed PRs
+          } else if (lastComment.commentText?.toLowerCase().includes('rejected')) {
+            return "error"; // Red for rejected closed PRs
+          }
+        }
+      }
       return "default";
     default:
       return "default";
@@ -155,6 +179,8 @@ export const AnalystDashboard: React.FC = () => {
       }
     },
     enabled: !!user,
+    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchIntervalInBackground: true, // Continue refetching even when tab is not active
   });
 
   const {
@@ -175,11 +201,47 @@ export const AnalystDashboard: React.FC = () => {
       }
     },
     enabled: !!user,
+    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchIntervalInBackground: true, // Continue refetching even when tab is not active
   });
 
   const assignMutation = useMutation({
     mutationFn: (prId: string) => paPRService.assignPR(prId),
-    onSuccess: () => {
+    onMutate: async (prId) => {
+      await queryClient.cancelQueries({ queryKey: ["pa-available-prs"] });
+      await queryClient.cancelQueries({ queryKey: ["pa-my-prs"] });
+
+      const previousAvailable = queryClient.getQueryData(["pa-available-prs"]);
+      const previousMy = queryClient.getQueryData(["pa-my-prs"]);
+
+      // Optimistically move PR from available to my assigned
+      if (previousAvailable && previousMy) {
+        const prToAssign = previousAvailable.find((pr: PR) => pr.id === prId);
+        if (prToAssign) {
+          const updatedPR = {
+            ...prToAssign,
+            assignedTo: user?.id,
+            analystStatus: "Active Status",
+          };
+
+          queryClient.setQueryData(["pa-available-prs"], 
+            previousAvailable.filter((pr: PR) => pr.id !== prId)
+          );
+          queryClient.setQueryData(["pa-my-prs"], [...previousMy, updatedPR]);
+        }
+      }
+
+      return { previousAvailable, previousMy };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousAvailable) {
+        queryClient.setQueryData(["pa-available-prs"], context.previousAvailable);
+      }
+      if (context?.previousMy) {
+        queryClient.setQueryData(["pa-my-prs"], context.previousMy);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pa-available-prs"] });
       queryClient.invalidateQueries({ queryKey: ["pa-my-prs"] });
     },
@@ -245,163 +307,184 @@ export const AnalystDashboard: React.FC = () => {
     );
   }
 
-  const renderPRCard = (pr: PR, showAssignButton = false) => (
-    <Grid item xs={12} md={6} lg={4} key={pr.id}>
-      <Slide direction="up" in={true} timeout={600}>
-        <Card
-          sx={{
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            borderRadius: 3,
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-            transition: "all 0.3s ease",
-            "&:hover": {
-              transform: "translateY(-4px)",
-              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
-            },
-          }}
-        >
-          <CardContent sx={{ flexGrow: 1, p: 3 }}>
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                mb: 2,
-              }}
-            >
-              <Typography variant="h6" component="h2" noWrap fontWeight="bold">
-                {pr.accountInfo}
-              </Typography>
-              <Chip
-                label={getStatusLabel(pr.analystStatus || pr.salesStatus)}
-                color={
-                  getStatusColor(pr.analystStatus || pr.salesStatus) as any
-                }
-                size="small"
-                sx={{ fontWeight: 600 }}
-              />
-            </Box>
+  const renderPRCard = (pr: PR, showAssignButton = false) => {
+    const { user } = useAuth();
+    const isAssignedToCurrentUser = pr.assignedTo && user && pr.assignedTo === user.id;
+    const isAssignedToOtherUser = pr.assignedTo && user && pr.assignedTo !== user.id;
 
-            <Stack spacing={1.5} sx={{ mb: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <ScheduleIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                <Typography variant="body2" color="text.secondary">
-                  {safeFormatDate(pr.shipmentDate, "MMM dd, yyyy")}
-                </Typography>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <BusinessIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                <Typography variant="body2" color="text.secondary">
-                  From: {pr.originAddress ? `${pr.originAddress}, ` : ""}
-                  {pr.originState || "N/A"}
-                </Typography>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <TrendingUpIcon
-                  sx={{ fontSize: 16, color: "text.secondary" }}
-                />
-                <Typography variant="body2" color="text.secondary">
-                  To: {pr.destAddress ? `${pr.destAddress}, ` : ""}
-                  {pr.destState || "N/A"}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Divider sx={{ my: 2 }} />
-
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <IconButton
-                size="small"
-                onClick={() => handleViewPR(pr.id)}
-                color="primary"
+    return (
+      <Grid item xs={12} md={6} lg={4} key={pr.id}>
+        <Slide direction="up" in={true} timeout={600}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+              transition: "all 0.3s ease",
+              "&:hover": {
+                transform: "translateY(-4px)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+              },
+            }}
+          >
+            <CardContent sx={{ flexGrow: 1, p: 3 }}>
+              <Box
                 sx={{
-                  bgcolor: "primary.main",
-                  color: "white",
-                  "&:hover": { bgcolor: "primary.dark" },
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  mb: 2,
                 }}
               >
-                <ViewIcon />
-              </IconButton>
-
-              {showAssignButton && !pr.assignedTo && (
-                <Button
+                <Typography variant="h6" component="h2" noWrap fontWeight="bold">
+                  {pr.accountInfo}
+                </Typography>
+                <Chip
+                  label={getStatusLabel(pr.analystStatus || pr.salesStatus)}
+                  color={
+                    getStatusColor(pr.analystStatus || pr.salesStatus, pr) as any
+                  }
                   size="small"
-                  variant="outlined"
-                  onClick={() => handleAssignPR(pr.id)}
-                  color="success"
-                  disabled={assignMutation.isPending}
-                  startIcon={<AssignIcon />}
-                  sx={{
-                    fontSize: "0.75rem",
-                    borderRadius: 2,
-                    "&:hover": {
-                      bgcolor: "success.main",
-                      color: "white",
-                    },
-                  }}
-                >
-                  Assign
-                </Button>
-              )}
+                  sx={{ fontWeight: 600 }}
+                />
+              </Box>
 
-              {(pr.analystStatus?.toLowerCase() ===
-                PRStatus.ACTIVE_STATUS.toLowerCase() ||
-                pr.analystStatus?.toLowerCase() === "active status") && (
-                <>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleViewPR(pr.id)}
-                    color="success"
-                    sx={{
-                      bgcolor: "success.main",
-                      color: "white",
-                      "&:hover": { bgcolor: "success.dark" },
-                    }}
-                  >
-                    <ApproveIcon />
-                  </IconButton>
+              <Stack spacing={1.5} sx={{ mb: 3 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <ScheduleIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  <Typography variant="body2" color="text.secondary">
+                    {safeFormatDate(pr.shipmentDate, "MMM dd, yyyy")}
+                  </Typography>
+                </Box>
 
-                  <IconButton
-                    size="small"
-                    onClick={() => handleViewPR(pr.id)}
-                    color="error"
-                    sx={{
-                      bgcolor: "error.main",
-                      color: "white",
-                      "&:hover": { bgcolor: "error.dark" },
-                    }}
-                  >
-                    <RejectIcon />
-                  </IconButton>
-                </>
-              )}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <BusinessIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  <Typography variant="body2" color="text.secondary">
+                    From: {pr.originAddress ? `${pr.originAddress}, ` : ""}
+                    {pr.originState || "N/A"}
+                  </Typography>
+                </Box>
 
-              {(pr.analystStatus?.toLowerCase() ===
-                PRStatus.ACTION_REQUIRED.toLowerCase() ||
-                pr.analystStatus?.toLowerCase() === "action required") && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <TrendingUpIcon
+                    sx={{ fontSize: 16, color: "text.secondary" }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    To: {pr.destAddress ? `${pr.destAddress}, ` : ""}
+                    {pr.destState || "N/A"}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                 <IconButton
                   size="small"
                   onClick={() => handleViewPR(pr.id)}
-                  color="warning"
+                  color="primary"
                   sx={{
-                    bgcolor: "warning.main",
+                    bgcolor: "primary.main",
                     color: "white",
-                    "&:hover": { bgcolor: "warning.dark" },
+                    "&:hover": { bgcolor: "primary.dark" },
                   }}
                 >
-                  <CommentIcon />
+                  <ViewIcon />
                 </IconButton>
-              )}
-            </Box>
-          </CardContent>
-        </Card>
-      </Slide>
-    </Grid>
-  );
+
+                {showAssignButton && !pr.assignedTo && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleAssignPR(pr.id)}
+                    color="success"
+                    disabled={assignMutation.isPending}
+                    startIcon={<AssignIcon />}
+                    sx={{
+                      fontSize: "0.75rem",
+                      borderRadius: 2,
+                      "&:hover": {
+                        bgcolor: "success.main",
+                        color: "white",
+                      },
+                    }}
+                  >
+                    Assign
+                  </Button>
+                )}
+
+                {/* Show assigned user ID if assigned to someone else */}
+                {isAssignedToOtherUser && (
+                  <Chip
+                    label={`Assigned to: ${pr.assignedTo}`}
+                    color="info"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: "0.75rem" }}
+                  />
+                )}
+
+                {/* Show approve/reject buttons only if assigned to current user */}
+                {(pr.analystStatus?.toLowerCase() ===
+                  PRStatus.ACTIVE_STATUS.toLowerCase() ||
+                  pr.analystStatus?.toLowerCase() === "active status") &&
+                  isAssignedToCurrentUser && (
+                  <>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleViewPR(pr.id)}
+                      color="success"
+                      sx={{
+                        bgcolor: "success.main",
+                        color: "white",
+                        "&:hover": { bgcolor: "success.dark" },
+                      }}
+                    >
+                      <ApproveIcon />
+                    </IconButton>
+
+                    <IconButton
+                      size="small"
+                      onClick={() => handleViewPR(pr.id)}
+                      color="error"
+                      sx={{
+                        bgcolor: "error.main",
+                        color: "white",
+                        "&:hover": { bgcolor: "error.dark" },
+                      }}
+                    >
+                      <RejectIcon />
+                    </IconButton>
+                  </>
+                )}
+
+                {/* Show action required button only if assigned to current user */}
+                {(pr.analystStatus?.toLowerCase() ===
+                  PRStatus.ACTION_REQUIRED.toLowerCase() ||
+                  pr.analystStatus?.toLowerCase() === "action required") &&
+                  isAssignedToCurrentUser && (
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewPR(pr.id)}
+                    color="warning"
+                    sx={{
+                      bgcolor: "warning.main",
+                      color: "white",
+                      "&:hover": { bgcolor: "warning.dark" },
+                    }}
+                  >
+                    <CommentIcon />
+                  </IconButton>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Slide>
+      </Grid>
+    );
+  };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

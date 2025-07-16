@@ -81,6 +81,100 @@ export const mockPRs: PR[] = [
         created_at: new Date('2024-01-13')
       }
     ]
+  },
+  {
+    id: '3',
+    shipmentDate: new Date('2024-01-25'),
+    accountInfo: 'Approved Company',
+    discount: 15,
+    startingAddress: '100 Success St',
+    startingState: 'CA',
+    startingZip: '90210',
+    startingCountry: 'USA',
+    destinationAddress: '200 Victory Ave',
+    destinationState: 'NY',
+    destinationZip: '10001',
+    destinationCountry: 'USA',
+    items: [
+      {
+        itemName: 'Approved Items',
+        commodityClass: 'Class 60',
+        totalWeight: 750,
+        handlingUnits: 8,
+        numberOfPieces: 25,
+        containerTypes: 'Boxes',
+        numberOfPallets: 3
+      }
+    ],
+    accessorial: true,
+    pickup: true,
+    delivery: true,
+    daylightProtectCoverage: true,
+    status: PRStatus.CLOSED,
+    salesStatus: 'Closed',
+    analystStatus: 'Closed',
+    finalApprovalStatus: 'Approved', // This PR was approved before being closed
+    created_by: '1',
+    assigned_to: '2',
+    submission_date: new Date('2024-01-20'),
+    last_updated: new Date('2024-01-25'),
+    comments: [
+      {
+        comment_id: '2',
+        pr_id: '3',
+        user_id: '2',
+        role: UserRole.PRICING_ANALYST,
+        comment_text: 'Approved with conditions.',
+        created_at: new Date('2024-01-22')
+      }
+    ]
+  },
+  {
+    id: '4',
+    shipmentDate: new Date('2024-01-30'),
+    accountInfo: 'Rejected Company',
+    discount: 20,
+    startingAddress: '300 Failure St',
+    startingState: 'TX',
+    startingZip: '75001',
+    startingCountry: 'USA',
+    destinationAddress: '400 Denial Ave',
+    destinationState: 'FL',
+    destinationZip: '33101',
+    destinationCountry: 'USA',
+    items: [
+      {
+        itemName: 'Rejected Items',
+        commodityClass: 'Class 80',
+        totalWeight: 1200,
+        handlingUnits: 12,
+        numberOfPieces: 30,
+        containerTypes: 'Crates',
+        numberOfPallets: 4
+      }
+    ],
+    accessorial: false,
+    pickup: false,
+    delivery: true,
+    daylightProtectCoverage: false,
+    status: PRStatus.CLOSED,
+    salesStatus: 'Closed',
+    analystStatus: 'Closed',
+    finalApprovalStatus: 'Rejected', // This PR was rejected before being closed
+    created_by: '1',
+    assigned_to: '2',
+    submission_date: new Date('2024-01-25'),
+    last_updated: new Date('2024-01-30'),
+    comments: [
+      {
+        comment_id: '3',
+        pr_id: '4',
+        user_id: '2',
+        role: UserRole.PRICING_ANALYST,
+        comment_text: 'Rejected due to insufficient information.',
+        created_at: new Date('2024-01-28')
+      }
+    ]
   }
 ];
 

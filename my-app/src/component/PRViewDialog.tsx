@@ -27,7 +27,7 @@ interface PRViewDialogProps {
   onClose: () => void;
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string, pr?: any) => {
   switch (status) {
     case 'DRAFT':
       return 'default';
@@ -39,6 +39,33 @@ const getStatusColor = (status: string) => {
       return 'success';
     case 'REJECTED':
       return 'error';
+    case 'CLOSED':
+    case 'closed':
+      // For closed status, check if it was approved or rejected
+      if (pr) {
+        // First check the finalApprovalStatus field
+        if (pr.finalApprovalStatus?.toLowerCase() === 'approved') {
+          return 'success'; // Green for approved closed PRs
+        } else if (pr.finalApprovalStatus?.toLowerCase() === 'rejected') {
+          return 'error'; // Red for rejected closed PRs
+        }
+        // Fallback: Check if the analyst status shows it was approved or rejected
+        if (pr.analystStatus?.toLowerCase() === 'approved') {
+          return 'success'; // Green for approved closed PRs
+        } else if (pr.analystStatus?.toLowerCase() === 'rejected') {
+          return 'error'; // Red for rejected closed PRs
+        }
+        // Last resort: Check comments for approval/rejection indicators
+        if (pr.comments && pr.comments.length > 0) {
+          const lastComment = pr.comments[pr.comments.length - 1];
+          if (lastComment.comment_text?.toLowerCase().includes('approved')) {
+            return 'success'; // Green for approved closed PRs
+          } else if (lastComment.comment_text?.toLowerCase().includes('rejected')) {
+            return 'error'; // Red for rejected closed PRs
+          }
+        }
+      }
+      return 'default';
     default:
       return 'default';
   }
@@ -102,7 +129,7 @@ export const PRViewDialog: React.FC<PRViewDialogProps> = ({ pr, onClose }) => {
           </Typography>
           <Chip
             label={getStatusLabel(pr.status)}
-            color={getStatusColor(pr.status) as any}
+            color={getStatusColor(pr.status, pr) as any}
           />
         </Box>
         <Typography variant="body2" color="text.secondary">

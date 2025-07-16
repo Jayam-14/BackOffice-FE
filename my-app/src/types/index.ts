@@ -72,6 +72,7 @@ export interface PR {
   daylightProtect: boolean;
   salesStatus: string;
   analystStatus?: string;
+  finalApprovalStatus?: string; // Track if closed PR was approved or rejected
   createdBy: string;
   assignedTo?: string;
   submissionDate?: string;

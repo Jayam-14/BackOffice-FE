@@ -1,6 +1,6 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: "https://b3072eec7eb0.ngrok-free.app",
+  BASE_URL: "https://ca44b82c89e8.ngrok-free.app",
   REQUEST_CONFIG: {
     headers: {
       "Content-Type": "application/json",
