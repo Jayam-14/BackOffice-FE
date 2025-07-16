@@ -13,7 +13,8 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { NavigationHelper } from "./component/NavigationHelper";
 import { ErrorBoundary } from "./component/ErrorBoundary";
 import { DashboardLayout } from "./component/DashboardLayout";
-import { AuthPage } from "./pages/AuthPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SignupPage } from "./pages/SignupPage";
 import { SalesDashboard } from "./pages/SalesDashboard";
 import { AnalystDashboard } from "./pages/AnalystDashboard";
 import { PRDetailsPage } from "./pages/PRDetailsPage";
@@ -188,8 +189,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   }
 
   if (!user) {
-    console.log("ProtectedRoute - no user, redirecting to /auth");
-    return <Navigate to="/auth" replace />;
+    console.log("ProtectedRoute - no user, redirecting to /login");
+    return <Navigate to="/login" replace />;
   }
 
   console.log("ProtectedRoute - user authenticated, showing children");
@@ -217,8 +218,8 @@ const DashboardRoute: React.FC = () => {
   }
 
   if (!user) {
-    console.log("DashboardRoute - no user, redirecting to /auth");
-    return <Navigate to="/auth" replace />;
+    console.log("DashboardRoute - no user, redirecting to /login");
+    return <Navigate to="/login" replace />;
   }
 
   // Redirect based on user role
@@ -230,8 +231,8 @@ const DashboardRoute: React.FC = () => {
     return <Navigate to="/analyst" replace />;
   }
 
-  console.log("DashboardRoute - unknown role, redirecting to /auth");
-  return <Navigate to="/auth" replace />;
+  console.log("DashboardRoute - unknown role, redirecting to /login");
+  return <Navigate to="/login" replace />;
 };
 
 // AppRoutes component that uses navigation hooks
@@ -242,7 +243,8 @@ const AppRoutes: React.FC = () => {
       <NavigationHelper />
       <Routes>
         <Route path="/test" element={<TestLogin />} />
-        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route
           path="/sales"
           element={
@@ -268,7 +270,7 @@ const AppRoutes: React.FC = () => {
           }
         />
         <Route path="/" element={<DashboardRoute />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>
   );
