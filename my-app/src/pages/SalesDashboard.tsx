@@ -39,7 +39,6 @@ import { salesPRService } from "../services/prService";
 import { PRStatus } from "../types";
 import { PRForm } from "../component/PRForm";
 import type { PR, PRCreateData } from "../types";
-import CloseIcon from '@mui/icons-material/Close';
 
 // Safe date formatting function
 const safeFormatDate = (date: any, formatString: string): string => {
@@ -601,21 +600,7 @@ export const SalesDashboard: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ m: 0, p: 2, position: 'relative' }}>
-          Create New Pricing Request
-          <IconButton
-            aria-label="close"
-            onClick={() => setIsCreateDialogOpen(false)}
-            sx={{
-              position: 'absolute',
-              right: 8,
-              top: 8,
-              color: (theme) => theme.palette.grey[500],
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
+        <DialogTitle>Create New Pricing Request</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <Tabs value={tabValue} onChange={handleTabChange}>
